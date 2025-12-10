@@ -1,0 +1,8 @@
+Hostname,IP Address,Model,Serial Number,Location,Device Type,OS_Family,SSH_User,SSH_Port,Auth_Method,CPU,GPU,RAM,ports,NVMe Disc,SSD,HDD,PSU
+ISP-ROUTER,192.168.1.1,Zyxel VMG8623-T50B,UNKNOWN,Utility Room,Network,ZyxelOS,admin,22,Password,,,,,,,,
+GW-CORE-01,192.168.1.2,Cisco ISR 4431,NEW-DEVICE,Rack 1 - Top,Network,IOS-XE,admin,22,Key,,,,,,,,
+SRV-PROD-01,192.168.1.10,Dell PowerEdge R740,CN-07PH2F-70163,Rack 1 - U10,Server,Linux,root,22,Key,,,,,,,,
+SRV-PROD-02,192.168.1.11,HPE ProLiant DL380,CZJ9380Q92,Rack 1 - U12,Server,Linux,root,22,Key,,,,,,,,
+SW-CORE-01,192.168.1.20,Huawei CloudEngine S5735-L24T4X-A1,UNKNOWN,Rack 1 - Top,Network,VRP,admin,22,Password,,,,,,,,
+SW-ACCESS-01,192.168.2.1,Cisco Catalyst 9200,FDO212900B2,Office Floor 1,Network,IOS-XE,admin,22,Key,,,,,,,,
+NAS-BACKUP,192.168.1.50,Synology RS1221+,19A0K03222,Rack 2 - U5,Storage,DSM,admin,22,Password,,,,,,,,

@@ -1,0 +1,15 @@
+langchain
+langchain-community
+langchain-google-genai
+chainlit
+sqlalchemy
+chromadb
+pandas
+openpyxl
+pypdf
+llama-parse
+jinja2
+python-dotenv
+
+asyncssh
+netmiko

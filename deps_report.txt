@@ -1,0 +1,12 @@
+Python: 3.13.3 (tags/v3.13.3:6280bb5, Apr  8 2025, 14:47:33) [MSC v.1943 64 bit (AMD64)]
+------------------------------
+langchain: 1.1.3
+langchain-core: 1.1.3
+langchain-community: 0.4.1
+langchain-google-genai: 1.0.10
+google-generativeai: 0.7.2
+pydantic: 2.12.5
+numpy: 2.3.5
+chainlit: 2.9.3
+------------------------------
+langchain_core.pydantic_v1: MISSING (cannot import name 'pydantic_v1' from 'langchain_core' (C:\Users\Senad\AppData\Local\Programs\Python\Python313\Lib\site-packages\langchain_core\__init__.py))

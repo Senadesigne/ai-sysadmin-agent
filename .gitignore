@@ -1,0 +1,28 @@
+# Environment variables (Secrets)
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+env/
+
+# Data and Logs
+*.db
+history.db
+inventory.db
+*.log
+temp_*
+
+# Chainlit
+.chainlit/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
