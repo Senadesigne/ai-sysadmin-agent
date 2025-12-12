@@ -13,3 +13,5 @@ python-dotenv
 
 asyncssh
 netmiko
+
+pydantic<2.10

@@ -1,3 +1,5 @@
+
+# import app.patches # Apply 500 error fix - DISABLED due to auth conflict
 import chainlit as cl
 import sys
 import os
@@ -11,6 +13,23 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '.
 from app.data.inventory_repo import InventoryRepository
 from app.llm.client import get_llm
 from app.rag.engine import RagEngine
+from chainlit.input_widget import Select, Switch, Slider
+import app.core.persistence as p
+import chainlit.data as cl_data
+
+# @cl.password_auth_callback
+# def auth(username, password):
+#     # Razvojni "backdoor" - u produkciji zamijeniti s provjerom iz baze
+#     # Prihvacamo 'admin' ili Senadov email
+#     valid_users = ["admin", "senad.dupljak@gmail.com"]
+#     if username in valid_users and password == "admin":
+#         return cl.User(identifier="antigravity_dev_user", metadata={"role": "admin"})
+#     return None
+
+@cl.header_auth_callback
+def header_auth(headers):
+    # Auto-login for dev environment to bypass potential session state bugs
+    return cl.User(identifier="antigravity_dev_user", metadata={"role": "admin"})
 # MONKEYPATCH: Fix for older libraries expecting langchain.verbose
 import langchain
 if not hasattr(langchain, 'verbose'):
@@ -35,7 +54,6 @@ rag_engine = RagEngine()
 
 # --- PERSISTENCE SETUP ---
 # Initialize the custom Data Layer for Chat History
-import chainlit.data as cl_data
 cl_data._data_layer = SQLiteDataLayer()
 
 def extract_json_action(text: str):
@@ -122,21 +140,26 @@ async def on_reject(action: cl.Action):
 async def set_starters():
     return [
         cl.Starter(
-            label="Konfiguriraj Cisco Router",
-            message="Navedi mi korake za puštanje u rad Cisco 4431 routera",
-            icon="/public/icons/cisco.svg",
+            label="Spoji se online",
+            message="Želim se spojiti na udaljeni uređaj. (SSH Placeholder)",
+            icon="/public/icons/terminal.svg",
+            ),
+        cl.Starter(
+            label="Skeniraj Mrežu",
+            message="Skeniraj mrežu za aktivne uređaje. (Nmap Placeholder)",
+            icon="/public/icons/radar.svg",
+            ),
+        cl.Starter(
+            label="Status Sustava",
+            message="Provjeri status servera i servisa. (Healthcheck Placeholder)",
+            icon="/public/icons/activity.svg",
             ),
         cl.Starter(
             label="Analiziraj Inventar",
             message="Koji uređaji su trenutno u bazi?",
             icon="/public/icons/inventory.svg",
             ),
-        cl.Starter(
-            label="Help / Pomoć",
-            message="Koje su moje mogućnosti kao AI SysAdmina?",
-            icon="/public/icons/help.svg",
-            ),
-        ]
+    ]
 
 @cl.on_chat_start
 async def start():

@@ -1,0 +1,23 @@
+INSTRUKCIJE ZA POSTAVLJANJE .env FAJLA
+=====================================
+
+Kreirajte ili ažurirajte .env fajl u root direktoriju projekta sa sljedećim sadržajem:
+
+# Chainlit Authentication
+CHAINLIT_AUTH_SECRET="T,RhcYWo~/FhkNP,BDWu1A/z>ouBh==fpRNMU/A9ysAqgGgle~=?47K1uskdxAzM"
+
+# Google API Key for RAG/LLM (dodajte svoj ključ ovdje)
+GOOGLE_API_KEY=your-google-api-key-here
+
+# SSH Key Path (ako je potrebno)
+SSH_KEY_PATH=/path/to/your/ssh/key
+
+NAPOMENE:
+1. JWT secret je već generiran i spreman za korištenje
+2. Za Google API key idite na: https://makersuite.google.com/app/apikey
+3. Bez Google API key-a, RAG funkcionalnost neće raditi ali chat će
+
+NAKON POSTAVLJANJA .env FAJLA:
+- Restartajte aplikaciju
+- Sidebar bi trebao raditi
+- Chat će raditi (možda bez RAG konteksta ako nema Google API key)

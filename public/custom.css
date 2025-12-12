@@ -1,0 +1,33 @@
+/* .clAppHeader {
+    display: none !important; 
+} */
+
+/* Sidebar Background */
+.MuiDrawer-paper {
+    background-color: #131314 !important;
+    /* Extremely dark grey/black like Gemini */
+    color: #E3E3E3 !important;
+    border-right: 1px solid #333 !important;
+}
+
+/* Buttons in Sidebar */
+.MuiListItemButton-root {
+    color: #E3E3E3 !important;
+    border-radius: 20px !important;
+    /* Rounded pills */
+    margin: 4px 8px !important;
+}
+
+.MuiListItemButton-root:hover {
+    background-color: #303030 !important;
+}
+
+/* Icons */
+.MuiListItemIcon-root {
+    color: #E3E3E3 !important;
+}
+
+/* New Chat Button special styling if possible, otherwise generic */
+
+/* Red Accents preservation */
+/* If there are red elements, we ensure they pop */

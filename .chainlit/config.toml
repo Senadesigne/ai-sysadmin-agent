@@ -1,0 +1,16 @@
+[project]
+name = "AI SysAdmin Agent"
+user_env = []
+
+[UI]
+name = "AI SysAdmin Agent"
+description = "Your AI Assistant for Network Infrastructure"
+custom_css = "/public/custom.css"
+hide_cot = false
+theme = "dark" 
+
+[data_persistence]
+enabled = true
+
+[meta]
+generated_by = "2.9.3"

@@ -17,7 +17,7 @@ inventory.db
 temp_*
 
 # Chainlit
-.chainlit/
+# .chainlit/
 
 # IDE
 .vscode/

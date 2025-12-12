@@ -2,6 +2,7 @@ import os
 import json
 import chainlit.data as cl_data
 from chainlit.types import ThreadDict, ThreadFilter, PaginatedResponse
+from chainlit.user import PersistedUser
 from typing import Optional, List, Dict, Any
 from sqlalchemy import create_engine, Column, String, Text, Integer, JSON, ForeignKey, DateTime
 from sqlalchemy.orm import sessionmaker, declarative_base, Session
@@ -10,6 +11,8 @@ import uuid
 
 # --- SQLALCHEMY SETUP ---
 Base = declarative_base()
+
+
 
 class DBUser(Base):
     __tablename__ = "users"
@@ -180,7 +183,12 @@ class SQLiteDataLayer(cl_data.BaseDataLayer):
         with self.SessionLocal() as session:
             user = session.query(DBUser).filter(DBUser.identifier == identifier).first()
             if user:
-                return {"id": user.id, "identifier": user.identifier, "metadata": user.metadata_}
+                return PersistedUser(
+                    id=user.id,
+                    identifier=user.identifier,
+                    createdAt=datetime.datetime.now().isoformat(),
+                    metadata=user.metadata_
+                )
         return None
 
     async def create_user(self, user: Any):
@@ -196,8 +204,18 @@ class SQLiteDataLayer(cl_data.BaseDataLayer):
                 )
                 session.add(db_user)
                 session.commit()
-                return {"id": db_user.id, "identifier": db_user.identifier, "metadata": db_user.metadata_}
-            return {"id": existing.id, "identifier": existing.identifier, "metadata": existing.metadata_}
+                return PersistedUser(
+                    id=db_user.id,
+                    identifier=db_user.identifier,
+                    createdAt=datetime.datetime.now().isoformat(),
+                    metadata=db_user.metadata_
+                )
+            return PersistedUser(
+                id=existing.id,
+                identifier=existing.identifier,
+                createdAt=datetime.datetime.now().isoformat(),
+                metadata=existing.metadata_
+            )
 
     # --- THREADS ---
     async def get_thread(self, thread_id: str):
@@ -245,36 +263,49 @@ class SQLiteDataLayer(cl_data.BaseDataLayer):
                 session.commit()
 
     async def list_threads(self, pagination: Any, filter: ThreadFilter) -> PaginatedResponse:
-        with self.SessionLocal() as session:
-            query = session.query(DBThread)
-            if filter.userIdentifier:
-                query = query.filter(DBThread.userIdentifier == filter.userIdentifier)
-            if filter.search:
-                query = query.filter(DBThread.name.contains(filter.search)) # Simple text search
-            if filter.feedback:
-                # Joining steps and feedback is complex, skipping for basic sqlite implementation
-                pass
+        try:
+            with self.SessionLocal() as session:
+                query = session.query(DBThread)
+                if filter.userId:
+                    query = query.filter(DBThread.userIdentifier == filter.userId)
+                if filter.search:
+                    query = query.filter(DBThread.name.contains(filter.search)) # Simple text search
+                if filter.feedback:
+                    # Joining steps and feedback is complex, skipping for basic sqlite implementation
+                    pass
 
-            # Simple pagination
-            total = query.count()
-            # Default sort desc by createdAt
-            query = query.order_by(DBThread.createdAt.desc())
-            
-            threads = query.limit(pagination.first).offset(0).all() # simplified offset
-            
-            data = []
-            for t in threads:
-                data.append({
-                    "id": t.id,
-                    "createdAt": t.createdAt,
-                    "name": t.name,
-                    "userId": t.userId,
-                    "userIdentifier": t.userIdentifier,
-                    "tags": t.tags,
-                    "metadata": t.metadata_
-                })
-            
-            return PaginatedResponse(data=data, pageInfo={"hasNextPage": False, "endCursor": None})
+                # Simple pagination
+                total = query.count()
+                # Default sort desc by createdAt
+                query = query.order_by(DBThread.createdAt.desc())
+                
+                threads = query.limit(pagination.first).offset(0).all() # simplified offset
+                
+                data = []
+                for t in threads:
+                    data.append({
+                        "id": t.id,
+                        "createdAt": t.createdAt,
+                        "name": t.name,
+                        "userId": t.userId,
+                        "userIdentifier": t.userIdentifier,
+                        "tags": t.tags,
+                        "metadata": t.metadata_
+                    })
+                
+                return PaginatedResponse(
+                    data=data, 
+                    pageInfo={
+                        "hasNextPage": False,
+                        "startCursor": None,
+                        "endCursor": None
+                    }
+                )
+        except Exception as e:
+            print(f"ERROR IN LIST_THREADS: {e}")
+            import traceback
+            traceback.print_exc()
+            raise e
 
     async def delete_thread(self, thread_id: str):
         with self.SessionLocal() as session:
