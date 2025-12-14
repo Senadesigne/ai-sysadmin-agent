@@ -23,12 +23,14 @@ V1 mora isporučiti:
 - **Optional LLM/RAG**: app se digne i radi i bez API ključeva (uz jasan fallback).
 - **Standardizirane putanje podataka** (DB, Chroma, temp) i “clean start”.
 - **Čist repo**: bez tuđih tajni, bez domenskih PDF-ova u default paketu.
-- **Jedan stabilan entrypoint** i quickstart upute.
+- **English-first + multi-dev readiness (minimum)**: dokumenti i user-facing poruke za kupca su na engleskom; repo ima minimalne smjernice za timski rad.
+- **Jedan stabilan entrypoint** i quickstart upute (eng).
 
 Non-goals v1:
 - license-key verifikacija u runtimeu
 - deployment na cloud (docker/k8s) kao “one click”
 - enterprise hardening (SSO, RBAC, audit)
+- “Security hardening” kao proizvodna značajka (iznad postojećeg approve patterna + blacklist) ako se kit pozicionira kao generički template
 
 ---
 
@@ -47,7 +49,35 @@ Non-goals v1:
 
 ---
 
-## Koraci implementacije (10–12 koraka)
+## Decision points prije implementacije
+
+- **Generički template vs. sysadmin/execution-first**
+  - Ako je **generički template**: “execution” ostaje opcionalni add-on (v2/Pro modul), a core je auth + persistence + optional RAG + UX patterni.
+  - Ako je **sysadmin/execution-first**: v1 mora imati jače guardraile (allowlist, policy, audit), što povećava scope i “security” obveze.
+- **Minimal legal docs vs. full polish**
+  - Minimal: `LICENSE-COMMERCIAL.md` + `COMMERCIAL-TERMS.md` + `THIRD_PARTY_NOTICES.md` (v1).
+  - Full polish: EULA, security policy, brand assets, changelog, support SLA (v2 ili enterprise tier).
+- **Release ZIP u v1 ili v2**
+  - Ako se prodaje odmah: release zip i “what’s included/excluded” pravila moraju biti u v1.
+  - Ako je prvo internal pilot: zip može u v2, ali tada v1 nije “out-of-the-box deliverable” za kupce.
+
+---
+
+## Cross-cutting rules (vrijede za sve korake)
+
+- **English-first policy (release-ready)**:
+  - Sve user-facing poruke, logovi, dokumentacija i komentari koji idu u release trebaju biti na engleskom.
+  - Privatne bilješke (koje ne idu u release) mogu ostati na HR, ali moraju biti izuzete iz distribucije.
+- **Multi-dev hygiene (minimum)**:
+  - `CONTRIBUTING.md` (branching, commit naming, PR checklist)
+  - `CODE_STYLE.md` ili minimalne smjernice u README
+  - Jasno definiran entrypoint i konfiguracija (novi dev može startati bez pitanja)
+  - Format/lint: idealno `ruff`/`black` + `pre-commit` (ako prevelik scope za v1, onda v2)
+- **Release rule**: svi dokumenti koji idu kupcu moraju biti na engleskom.
+
+---
+
+## Koraci implementacije (8–10 koraka)
 
 > Pravilo: svaki korak = jedan commit.
 
@@ -76,23 +106,16 @@ Non-goals v1:
 - **Test:** login radi s env kredencijalima; bez env-a u dev modu koristi sigurne defaulte ili blokira s jasnom porukom.
 - **Commit:** `feat: configurable auth (dev/prod) without hardcoded creds`
 
-### 4) Optional LLM: sigurni fallback kad nema API ključa
-- **Fajlovi:** `app/llm/client.py`, `app/ui/chat.py`
+### 4) Optional LLM + Optional RAG: safe fallbacks (no-crash)
+- **Fajlovi:** `app/llm/client.py`, `app/rag/engine.py`, `app/ui/chat.py`, `requirements.txt`
 - **Što se mijenja:**
-  - `get_llm()` uvijek vraća objekt ili eksplicitno baca “configuration error” koji UI hvata i prikazuje korisniku.
-  - U `on_message`: ako LLM nije konfiguriran, vrati uputu kako ga uključiti.
-- **Test:** bez `GOOGLE_API_KEY` chat se diže i odgovara “LLM nije konfiguriran”; s ključem radi normalno.
-- **Commit:** `fix: graceful no-LLM mode`
+  - LLM: bez `GOOGLE_API_KEY` aplikacija radi i vraća jasnu poruku kako uključiti LLM (bez `None.invoke` crasha).
+  - RAG: `RAG_ENABLED` gate + graceful skip za ingest/query kad nije konfigurirano.
+  - Jasne konfiguracijske poruke (eng) i “what works without keys” objašnjenje.
+- **Test:** bez ključeva app radi; s ključem radi LLM i RAG ingest/query.
+- **Commit:** `feat: optional LLM/RAG with graceful fallbacks`
 
-### 5) Optional RAG: radi bez Chroma/embeddings, i ne ruši ingest
-- **Fajlovi:** `app/rag/engine.py`, `app/ui/chat.py`, `requirements.txt`
-- **Što se mijenja:**
-  - `RagEngine` se inicijalizira samo ako je omogućen (`RAG_ENABLED`) i ako postoje preduvjeti.
-  - Ingest PDF/MD: ako RAG off, vrati poruku i preskoči.
-- **Test:** upload PDF bez ključa → poruka “RAG isključen”; s ključem → ingest i query vraćaju kontekst.
-- **Commit:** `feat: optional RAG with safe fallbacks`
-
-### 6) Ukloni dupli persistence modul (jedna istina)
+### 5) Ukloni dupli persistence modul (jedna istina)
 - **Fajlovi:** `app/core/persistence.py`, `app/ui/data_layer.py`, `app/ui/chat.py`
 - **Što se mijenja:**
   - Odabrati jednu implementaciju (preporuka: `app/ui/data_layer.py`).
@@ -100,15 +123,16 @@ Non-goals v1:
 - **Test:** sidebar threads + resume rade; nema import konfuzije.
 - **Commit:** `chore: remove unused legacy persistence implementation`
 
-### 7) Stabiliziraj persistence init lifecycle
-- **Fajlovi:** `app/ui/chat.py`, `app/ui/db.py`
+### 6) Reduce debug noise & keep init robust (no new startup hooks)
+- **Fajlovi:** `app/ui/data_layer.py`, `app/ui/db.py`, `app/ui/chat.py`
 - **Što se mijenja:**
-  - Inicijalizaciju DB-a raditi prije nego UI zatraži threadove (startup hook).
-  - Ukloniti suvišne debug printove ili ih staviti pod `DEBUG` flag.
-- **Test:** refresh na `/thread/<id>` radi; sidebar se puni bez “Thread not found”.
-- **Commit:** `fix: ensure persistence DB initialized before UI queries`
+  - V1 **ne uvodi nove Chainlit startup hookove**: zadržati postojeći `ensure_db_init()` pristup kao “source of truth” za init.
+  - Smanjiti debug noise: print/log poruke iza `DEBUG` flaga; ukloniti redundantne logove.
+  - Fokus: čitljiv output, bez promjene ponašanja persistence lifecycla.
+- **Test:** pokreni app i provjeri da nema “spam” logova; sidebar/resume i dalje rade kao prije.
+- **Commit:** `chore: reduce persistence debug noise (keep init strategy)`
 
-### 8) Uredi temp file handling (sigurno + cleanup)
+### 7) Uredi temp file handling (sigurno + cleanup)
 - **Fajlovi:** `app/ui/chat.py`
 - **Što se mijenja:**
   - Spremanje u OS temp folder ili `.data/tmp/`.
@@ -116,7 +140,7 @@ Non-goals v1:
 - **Test:** upload CSV/PDF, provjeri da se temp ne gomila.
 - **Commit:** `fix: store uploads in temp dir and cleanup`
 
-### 9) Knowledge base: ukloni domenske PDF-ove iz default paketa
+### 8) Knowledge base: ukloni domenske PDF-ove iz default paketa
 - **Fajlovi:** `app/knowledge_base/*`, dodati `app/knowledge_base/README.md` (ili `SAMPLE.md`)
 - **Što se mijenja:**
   - Maknuti PDF-ove iz distribucije (ostaviti jedan mali neutralni sample doc).
@@ -124,21 +148,14 @@ Non-goals v1:
 - **Test:** RAG ingest radi nad sample dokumentom.
 - **Commit:** `chore: replace domain PDFs with minimal sample knowledge base`
 
-### 10) “One command” quickstart + health check
-- **Fajlovi:** `start.bat`, `run_app.bat`, `main.py`, `scripts/verify_startup.py`, `CHAINLIT_SETUP.md` (ili novi quickstart doc)
+### 9) English-first + multi-dev readiness + quickstart (customer-facing)
+- **Fajlovi:** `CHAINLIT_SETUP.md`, `chainlit.md`, `README.md` (ako se uvodi), `start.bat`, `run_app.bat`, `main.py`, `scripts/verify_startup.py`, `CONTRIBUTING.md`, `CODE_STYLE.md`
 - **Što se mijenja:**
-  - Jedan preporučeni način pokretanja.
-  - Skripta koja provjeri env + dependency + pokaže jasne greške.
-- **Test:** clean venv → `run_app.bat` → app se digne; verify skripta prolazi.
-- **Commit:** `docs: streamline quickstart and add startup verification`
-
-### 11) Minimalno “product hardening” za v1
-- **Fajlovi:** `app/core/execution.py`, `app/ui/chat.py`
-- **Što se mijenja:**
-  - Proširiti blacklist + logging (bez osjetljivih podataka).
-  - Jasna pravila oko “approve execution”.
-- **Test:** pokušaj zabranjenih naredbi → blokirano; normalne → prolaze.
-- **Commit:** `security: tighten command validation and auditing`
+  - Dokumentacija i user-facing tekstovi za release prebacuju se na engleski (quickstart i konfiguracija).
+  - Dodati minimalni timski set: `CONTRIBUTING.md` + `CODE_STYLE.md`.
+  - Jedan preporučeni entrypoint i “verify startup” skripta koja jasno kaže što nedostaje.
+- **Test:** novi dev na clean venv: prati quickstart i digne app bez pitanja; verify skripta prolazi (ili daje jasnu grešku na eng).
+- **Commit:** `docs: english-first quickstart + team hygiene (contributing/style)`
 
 ---
 
@@ -174,7 +191,7 @@ Non-goals v1:
 - **Deployment opcije**: Docker image, docker-compose, systemd service, Windows service.
 - **Auth upgrade**: SSO (OIDC/SAML), RBAC, per-user policies.
 - **Observability**: structured logging, trace IDs, metrics.
-- **Advanced hardening**: allowlist commands per host, approval policies, secrets management.
+- **Execution add-on / Pro modul (optional)**: advanced hardening (allowlist commands per host, approval policies, audit trail, secrets management). V1 zadržava samo approve pattern + postojeći blacklist.
 - **Pluggable providers**: OpenAI/Anthropic/Azure/GCP, embeddings switch.
 
 ---
@@ -191,3 +208,5 @@ Non-goals v1:
 - [ ] Release ZIP radi i ne uključuje DB/Chroma/temp/tuđe PDF-ove.
 - [ ] `LICENSE-COMMERCIAL.md` + `COMMERCIAL-TERMS.md` + `THIRD_PARTY_NOTICES.md` postoje i pokrivaju distribuciju.
 - [ ] Postoji minimalni support/upgrade policy (u TERMS).
+- [ ] All docs + user-facing messages (UI text/logs that ship) are in English.
+- [ ] Repo has basic contributing guidelines for teams (`CONTRIBUTING.md`, `CODE_STYLE.md` or equivalent).
