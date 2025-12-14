@@ -26,3 +26,10 @@ temp_*
 # OS
 .DS_Store
 Thumbs.db
+
+# Ignore local Chroma vector DB
+app/data/chroma_db/
+app/data/chroma_db/**
+*.bin
+chroma.sqlite3
+
