@@ -152,14 +152,24 @@ Non-goals v1:
 - **Fajlovi:** `CHAINLIT_SETUP.md`, `chainlit.md`, `README.md` (ako se uvodi), `start.bat`, `run_app.bat`, `main.py`, `scripts/verify_startup.py`, `CONTRIBUTING.md`, `CODE_STYLE.md`
 - **Što se mijenja:**
   - Dokumentacija i user-facing tekstovi za release prebacuju se na engleski (quickstart i konfiguracija).
+  - Dodati/urediti paid v1 legal minimum dokumente: `LICENSE-COMMERCIAL.md`, `COMMERCIAL-TERMS.md`, `THIRD_PARTY_NOTICES.md` (+ kratka “No affiliation” napomena u README ako se koristi).
   - Dodati minimalni timski set: `CONTRIBUTING.md` + `CODE_STYLE.md`.
   - Jedan preporučeni entrypoint i “verify startup” skripta koja jasno kaže što nedostaje.
 - **Test:** novi dev na clean venv: prati quickstart i digne app bez pitanja; verify skripta prolazi (ili daje jasnu grešku na eng).
-- **Commit:** `docs: english-first quickstart + team hygiene (contributing/style)`
+- **Commit:** `docs: english-first quickstart + team hygiene + commercial license docs`
 
 ---
 
 ## Licenciranje i distribucija (paid, source-available)
+
+### Paid v1 legal minimum (obavezno prije prodaje)
+
+- `LICENSE-COMMERCIAL.md`
+- `COMMERCIAL-TERMS.md`
+  - Mora eksplicitno zabraniti **preprodaju templatea “as a template”**.
+  - Dopušteno: korištenje za **vlastite projekte** i **projekte klijenata** (deliverable/solution), bez redistribucije starter kitta kao proizvoda.
+- `THIRD_PARTY_NOTICES.md`
+- (Opcionalno) kratka **“No affiliation”** napomena (npr. u `README.md`) koja jasno kaže da projekt nije povezan/sponzoriran od Chainlit/LangChain/Google/itd.
 
 ### Fajlovi koje dodati (u kasnijim commitovima)
 - `LICENSE-COMMERCIAL.md` (glavna licenca)
@@ -207,6 +217,7 @@ Non-goals v1:
 - [ ] Svi podatkovni artefakti idu u `.data/` i ignorirani su.
 - [ ] Release ZIP radi i ne uključuje DB/Chroma/temp/tuđe PDF-ove.
 - [ ] `LICENSE-COMMERCIAL.md` + `COMMERCIAL-TERMS.md` + `THIRD_PARTY_NOTICES.md` postoje i pokrivaju distribuciju.
+- [ ] Paid v1 legal minimum docs exist (`LICENSE-COMMERCIAL.md`, `COMMERCIAL-TERMS.md`, `THIRD_PARTY_NOTICES.md`).
 - [ ] Postoji minimalni support/upgrade policy (u TERMS).
 - [ ] All docs + user-facing messages (UI text/logs that ship) are in English.
 - [ ] Repo has basic contributing guidelines for teams (`CONTRIBUTING.md`, `CODE_STYLE.md` or equivalent).
