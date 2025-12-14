@@ -74,10 +74,11 @@ class SQLiteDataLayer(BaseDataLayer):
 
     # --- THREAD METHODS ---
     async def get_thread(self, thread_id: str) -> Optional[ThreadDict]:
+        print(f"[DB] get_thread called with id={thread_id}")
         await ensure_db_init()
         async with aiosqlite.connect(self.db_path) as db:
-            # Thread
-            cursor = await db.execute("SELECT id, createdAt, name, userId, userIdentifier, tags, metadata FROM threads WHERE id = ?", (thread_id,))
+            # Thread - use SELECT * to ensure we get all fields
+            cursor = await db.execute("SELECT * FROM threads WHERE id = ?", (str(thread_id),))
             row = await cursor.fetchone()
             if not row: 
                 return None
@@ -95,8 +96,8 @@ class SQLiteDataLayer(BaseDataLayer):
                 "elements": []
             }
 
-            # Steps
-            cursor = await db.execute("SELECT id, name, type, threadId, parentId, input, output, createdAt, metadata FROM steps WHERE threadId = ? ORDER BY createdAt ASC", (thread_id,))
+            # Steps - use SELECT * to ensure we get all fields
+            cursor = await db.execute("SELECT * FROM steps WHERE threadId = ? ORDER BY createdAt ASC", (str(thread_id),))
             steps_rows = await cursor.fetchall()
             for s in steps_rows:
                 step = {
