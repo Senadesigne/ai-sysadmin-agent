@@ -40,3 +40,10 @@ app/data/chroma_db/**
 *.bin
 chroma.sqlite3
 
+
+# Ignore local dev files
+plan_za_sidebar.md
+test_*.py
+.chainlit/translations/
+app/config/
+
