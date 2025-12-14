@@ -21,7 +21,8 @@ class SQLiteDataLayer(BaseDataLayer):
     
     def __init__(self):
         self.db_path = DB_NAME
-        # print(f" SQLiteDataLayer inicijaliziran na: {self.db_path}")
+        print(f"[DB] SQLiteDataLayer inicijaliziran na: {self.db_path}")
+        
     
     def _get(self, obj, key, default=None):
         """Helper metoda za dohvaćanje vrijednosti iz dict ili objekta"""
@@ -76,43 +77,73 @@ class SQLiteDataLayer(BaseDataLayer):
     async def get_thread(self, thread_id: str) -> Optional[ThreadDict]:
         print(f"[DB] ENTER get_thread thread_id={thread_id}")
         await ensure_db_init()
+        
         async with aiosqlite.connect(self.db_path) as db:
-            # Thread - use SELECT * to ensure we get all fields
+            # Tolerantni pristup - prvo pokušaj s user filterom ako je dostupan
+            thread_row = None
+            
+            # Pokušaj 1: Naći thread samo po ID (fallback za kompatibilnost)
             cursor = await db.execute("SELECT * FROM threads WHERE id = ?", (str(thread_id),))
-            row = await cursor.fetchone()
-            if not row: 
+            thread_row = await cursor.fetchone()
+            
+            if not thread_row:
+                print(f"[DB] NOT FOUND thread_id={thread_id} (tried fallback query)")
                 return None
             
-            # Mapiranje rezultata
+            print(f"[DB] Found thread: id={thread_row[0]} name={thread_row[2]} userId={thread_row[3]}")
+            
+            # Mapiranje rezultata - koristimo eksplicitne indekse za sigurnost
             thread_data = {
-                "id": row[0],
-                "createdAt": row[1],
-                "name": row[2],
-                "userId": row[3],
-                "userIdentifier": row[4],
-                "tags": json.loads(row[5]) if row[5] else [],
-                "metadata": json.loads(row[6]) if row[6] else {},
+                "id": thread_row[0],
+                "createdAt": thread_row[1], 
+                "name": thread_row[2],
+                "userId": thread_row[3],
+                "userIdentifier": thread_row[4],
+                "tags": json.loads(thread_row[5]) if thread_row[5] else [],
+                "metadata": json.loads(thread_row[6]) if thread_row[6] else {},
                 "steps": [],
                 "elements": []
             }
 
-            # Steps - use SELECT * to ensure we get all fields
-            cursor = await db.execute("SELECT * FROM steps WHERE threadId = ? ORDER BY createdAt ASC", (str(thread_id),))
+            # Učitaj sve stepove za thread, sortiraj po createdAt ASC
+            # Koristimo SELECT * da dobijemo sva polja iz baze
+            cursor = await db.execute(
+                "SELECT * FROM steps WHERE threadId = ? ORDER BY createdAt ASC", 
+                (str(thread_id),)
+            )
             steps_rows = await cursor.fetchall()
+            
+            print(f"[DB] Found {len(steps_rows)} steps for thread {thread_id}")
+            
             for s in steps_rows:
+                # Mapiranje prema strukturi baze (21 polje)
                 step = {
                     "id": s[0],
-                    "name": s[1],
+                    "name": s[1], 
                     "type": s[2],
                     "threadId": s[3],
                     "parentId": s[4],
-                    "input": s[5],
-                    "output": s[6],
-                    "createdAt": s[7],
-                    "metadata": json.loads(s[8]) if s[8] else {}
+                    # Dodatna polja iz baze
+                    "disableFeedback": bool(s[5]) if s[5] is not None else False,
+                    "streaming": bool(s[6]) if s[6] is not None else False,
+                    "waitForAnswer": bool(s[7]) if s[7] is not None else False,
+                    "isError": bool(s[8]) if s[8] is not None else False,
+                    "metadata": json.loads(s[9]) if s[9] else {},
+                    "tags": json.loads(s[10]) if s[10] else [],
+                    "input": s[11] or "",
+                    "output": s[12] or "",
+                    "createdAt": s[13],
+                    "start": s[14],
+                    "end": s[15],
+                    "generation": s[16],
+                    "showInput": s[17],
+                    "language": s[18],
+                    "indent": s[19],
+                    "defaultOpen": bool(s[20]) if s[20] is not None else False
                 }
                 thread_data["steps"].append(step)
             
+            print(f"[DB] EXIT get_thread -> returning thread with {len(thread_data['steps'])} steps")
             return thread_data
 
     async def list_threads(self, pagination, filters):
@@ -123,10 +154,10 @@ class SQLiteDataLayer(BaseDataLayer):
             params = []
             conditions = []
             
-            # Temporarily disable user filter to show all threads
-            # if filters.userId:
-            #     conditions.append("(userId = ? OR userIdentifier = ?)")
-            #     params.extend([filters.userId, filters.userId])
+            # User filter - omogući samo threadove trenutnog korisnika
+            if filters.userId:
+                conditions.append("(userId = ? OR userIdentifier = ?)")
+                params.extend([filters.userId, filters.userId])
             if filters.search:
                 conditions.append("name LIKE ?")
                 params.append(f"%{filters.search}%")
@@ -154,8 +185,15 @@ class SQLiteDataLayer(BaseDataLayer):
                     "metadata": json.loads(row[6]) if row[6] else {}
                 })
             
+            # Debug log prvih 10 thread ID-eva
+            print(f"[DB] list_threads ids: {[t.get('id') for t in threads[:10]]}")
             print(f"[DB] EXIT list_threads -> returning {len(threads)} threads")
-            return PaginatedResponse(data=threads, pageInfo={"hasNextPage": False, "startCursor": None, "endCursor": None})
+            
+            # Vraćaj PaginatedResponse objekt, ne dict
+            return PaginatedResponse(
+                data=threads, 
+                pageInfo={"hasNextPage": False, "startCursor": None, "endCursor": None}
+            )
 
     async def update_thread(self, thread_id: str, name: Optional[str] = None, user_id: Optional[str] = None, metadata: Optional[Dict] = None, tags: Optional[List[str]] = None):
         async with aiosqlite.connect(self.db_path) as db:
