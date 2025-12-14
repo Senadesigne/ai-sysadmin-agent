@@ -115,7 +115,8 @@ class SQLiteDataLayer(BaseDataLayer):
             
             return thread_data
 
-    async def list_threads(self, pagination: Any, filters: ThreadFilter) -> PaginatedResponse:
+    async def list_threads(self, pagination, filters):
+        print(f"[DB] list_threads called pagination={pagination} filters={filters}")
         await ensure_db_init()
         async with aiosqlite.connect(self.db_path) as db:
             query = "SELECT id, createdAt, name, userId, userIdentifier, tags, metadata FROM threads"
