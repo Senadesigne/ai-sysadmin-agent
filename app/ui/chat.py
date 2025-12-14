@@ -42,9 +42,11 @@ def auth(username: str, password: str):
     
     # Dev credentials
     if username == "admin" and password == "admin":
+        user_identifier = "antigravity_dev_user"
         print(f"[AUTH] Login success user={username}")
+        print(f"[AUTH] success identifier={user_identifier}")
         return cl.User(
-            identifier="antigravity_dev_user", 
+            identifier=user_identifier, 
             metadata={"role": "admin", "username": username}
         )
     

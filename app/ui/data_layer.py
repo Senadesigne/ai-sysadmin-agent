@@ -219,6 +219,18 @@ class SQLiteDataLayer(BaseDataLayer):
         metadata = json.dumps(self._get(thread_dict, "metadata", {}))
         
         async with aiosqlite.connect(self.db_path) as db:
+            # Ako userIdentifier nije setovan, ali userId postoji, dohvati users.identifier
+            if not user_identifier and user_id:
+                cursor = await db.execute(
+                    "SELECT identifier FROM users WHERE id = ?", 
+                    (user_id,)
+                )
+                user_row = await cursor.fetchone()
+                if user_row:
+                    user_identifier = user_row[0]
+            
+            print(f"[DB] create_thread userId={user_id} userIdentifier={user_identifier}")
+            
             await db.execute(
                 "INSERT INTO threads (id, createdAt, name, userId, userIdentifier, tags, metadata) VALUES (?, ?, ?, ?, ?, ?, ?)",
                 (thread_id, created_at, name, user_id, user_identifier, tags, metadata)
@@ -285,7 +297,8 @@ class SQLiteDataLayer(BaseDataLayer):
     async def delete_feedback(self, feedback_id): pass
     async def get_thread_author(self, thread_id: str) -> str:
         """
-        Vraća identifier/userId iz threads tablice za dati thread_id.
+        Vraća userIdentifier iz threads tablice za dati thread_id.
+        Ako userIdentifier nije setovan, dohvaća users.identifier preko userId.
         Chainlit često poziva ovu funkciju prije get_thread za author check.
         """
         print(f"[DB] ENTER get_thread_author thread_id={thread_id}")
@@ -298,11 +311,29 @@ class SQLiteDataLayer(BaseDataLayer):
             )
             row = await cursor.fetchone()
             
-            if row:
-                user_id = row[0] or row[1]  # userId ili userIdentifier
-                print(f"[DB] get_thread_author found: thread_id={thread_id} author={user_id}")
-                return user_id or ""
-            else:
-                print(f"[DB] get_thread_author NOT FOUND: thread_id={thread_id}")
+            if not row:
+                print(f"[DB] get_thread_author -> thread_id={thread_id} userIdentifier=None userId=None return=None")
                 return ""
+            
+            user_id, user_identifier = row[0], row[1]
+            
+            # Primarno vrati userIdentifier ako postoji
+            if user_identifier:
+                print(f"[DB] get_thread_author -> thread_id={thread_id} userIdentifier={user_identifier} userId={user_id} return={user_identifier}")
+                return user_identifier
+            
+            # Ako userIdentifier nije setovan, ali userId postoji, dohvati users.identifier
+            if user_id:
+                cursor = await db.execute(
+                    "SELECT identifier FROM users WHERE id = ?", 
+                    (user_id,)
+                )
+                user_row = await cursor.fetchone()
+                if user_row:
+                    identifier = user_row[0]
+                    print(f"[DB] get_thread_author -> thread_id={thread_id} userIdentifier=None userId={user_id} return={identifier}")
+                    return identifier
+            
+            print(f"[DB] get_thread_author -> thread_id={thread_id} userIdentifier={user_identifier} userId={user_id} return=None")
+            return ""
     async def delete_user_session(self, id): pass

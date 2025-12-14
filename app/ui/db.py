@@ -107,6 +107,20 @@ async def init_db():
             )
         """)
         
+        # One-time migration: Popuni userIdentifier za postojeće threadove
+        cursor = await db.execute("""
+            UPDATE threads 
+            SET userIdentifier = (
+                SELECT users.identifier 
+                FROM users 
+                WHERE users.id = threads.userId
+            ) 
+            WHERE userIdentifier IS NULL AND userId IS NOT NULL
+        """)
+        migrated_count = cursor.rowcount
+        if migrated_count > 0:
+            print(f"[DB] Migrated {migrated_count} threads with userIdentifier")
+        
         await db.commit()
         # logging.info(f" Baza inicijalizirana: {DB_NAME}")
 
