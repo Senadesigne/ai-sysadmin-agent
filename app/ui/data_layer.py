@@ -38,6 +38,7 @@ class SQLiteDataLayer(BaseDataLayer):
 
     # --- USER METHODS ---
     async def get_user(self, identifier: str) -> Optional[PersistedUser]:
+        await ensure_db_init()
         async with aiosqlite.connect(self.db_path) as db:
             cursor = await db.execute(
                 "SELECT id, identifier, metadata, createdAt FROM users WHERE identifier = ?",
@@ -55,6 +56,7 @@ class SQLiteDataLayer(BaseDataLayer):
         return None
 
     async def create_user(self, user: User) -> Optional[PersistedUser]:
+        await ensure_db_init()
         identifier = self._get(user, "identifier")
         existing = await self.get_user(identifier)
         if existing:

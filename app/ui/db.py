@@ -122,7 +122,7 @@ async def init_db():
             print(f"[DB] Migrated {migrated_count} threads with userIdentifier")
         
         await db.commit()
-        # logging.info(f" Baza inicijalizirana: {DB_NAME}")
+        print("[DB] init_db complete (tables ensured: users, threads, steps, elements, feedbacks)")
 
 async def ensure_db_init() -> None:
     global _db_initialized
@@ -133,4 +133,3 @@ async def ensure_db_init() -> None:
             return
         await init_db()
         _db_initialized = True
-        print("[DB] init_db ensured (lazy)")
