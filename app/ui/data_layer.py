@@ -216,23 +216,34 @@ class SQLiteDataLayer(BaseDataLayer):
         created_at = datetime.utcnow().isoformat()
         name = self._get(thread_dict, "name")
         user_id = self._get(thread_dict, "userId") or self._get(thread_dict, "user_id")
-        user_identifier = self._get(thread_dict, "userIdentifier") or self._get(thread_dict, "user_identifier")
+        incoming_user_identifier = self._get(thread_dict, "userIdentifier") or self._get(thread_dict, "user_identifier")
         tags = json.dumps(self._get(thread_dict, "tags", []))
         metadata = json.dumps(self._get(thread_dict, "metadata", {}))
         
+        # Resolve proper userIdentifier - never save "system"
+        user_identifier = None
+        
+        # If incoming userIdentifier is None, empty, or "system", resolve from userId
+        if not incoming_user_identifier or incoming_user_identifier == "system":
+            if user_id:
+                async with aiosqlite.connect(self.db_path) as db:
+                    cursor = await db.execute(
+                        "SELECT identifier FROM users WHERE id = ?", 
+                        (user_id,)
+                    )
+                    user_row = await cursor.fetchone()
+                    if user_row:
+                        user_identifier = user_row[0]
+                    else:
+                        print(f"[DB] create_thread WARNING: userId={user_id} not found in users table")
+            else:
+                print(f"[DB] create_thread WARNING: no userId provided, cannot resolve userIdentifier")
+        else:
+            user_identifier = incoming_user_identifier
+        
+        print(f"[DB] create_thread resolved userIdentifier={user_identifier} from userId={user_id} (incoming={incoming_user_identifier})")
+        
         async with aiosqlite.connect(self.db_path) as db:
-            # Ako userIdentifier nije setovan, ali userId postoji, dohvati users.identifier
-            if not user_identifier and user_id:
-                cursor = await db.execute(
-                    "SELECT identifier FROM users WHERE id = ?", 
-                    (user_id,)
-                )
-                user_row = await cursor.fetchone()
-                if user_row:
-                    user_identifier = user_row[0]
-            
-            print(f"[DB] create_thread userId={user_id} userIdentifier={user_identifier}")
-            
             await db.execute(
                 "INSERT INTO threads (id, createdAt, name, userId, userIdentifier, tags, metadata) VALUES (?, ?, ?, ?, ?, ?, ?)",
                 (thread_id, created_at, name, user_id, user_identifier, tags, metadata)
@@ -319,22 +330,25 @@ class SQLiteDataLayer(BaseDataLayer):
             
             user_id, user_identifier = row[0], row[1]
             
-            # Primarno vrati userIdentifier ako postoji
-            if user_identifier:
+            # If userIdentifier is "system" or empty, fallback to users.identifier
+            if user_identifier == "system" or not user_identifier:
+                if user_id:
+                    cursor = await db.execute(
+                        "SELECT identifier FROM users WHERE id = ?", 
+                        (user_id,)
+                    )
+                    user_row = await cursor.fetchone()
+                    if user_row:
+                        identifier = user_row[0]
+                        if user_identifier == "system":
+                            print(f"[DB] get_thread_author legacy system -> return={identifier}")
+                        else:
+                            print(f"[DB] get_thread_author -> thread_id={thread_id} userIdentifier=None userId={user_id} return={identifier}")
+                        return identifier
+            else:
+                # Valid userIdentifier found
                 print(f"[DB] get_thread_author -> thread_id={thread_id} userIdentifier={user_identifier} userId={user_id} return={user_identifier}")
                 return user_identifier
-            
-            # Ako userIdentifier nije setovan, ali userId postoji, dohvati users.identifier
-            if user_id:
-                cursor = await db.execute(
-                    "SELECT identifier FROM users WHERE id = ?", 
-                    (user_id,)
-                )
-                user_row = await cursor.fetchone()
-                if user_row:
-                    identifier = user_row[0]
-                    print(f"[DB] get_thread_author -> thread_id={thread_id} userIdentifier=None userId={user_id} return={identifier}")
-                    return identifier
             
             print(f"[DB] get_thread_author -> thread_id={thread_id} userIdentifier={user_identifier} userId={user_id} return=None")
             return ""

@@ -115,11 +115,11 @@ async def init_db():
                 FROM users 
                 WHERE users.id = threads.userId
             ) 
-            WHERE userIdentifier IS NULL AND userId IS NOT NULL
+            WHERE (userIdentifier IS NULL OR userIdentifier = 'system') AND userId IS NOT NULL
         """)
         migrated_count = cursor.rowcount
         if migrated_count > 0:
-            print(f"[DB] Migrated {migrated_count} threads with userIdentifier")
+            print(f"[DB] Migrated {migrated_count} threads with userIdentifier (including system -> proper identifier)")
         
         await db.commit()
         print("[DB] init_db complete (tables ensured: users, threads, steps, elements, feedbacks)")
