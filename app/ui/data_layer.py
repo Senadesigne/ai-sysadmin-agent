@@ -283,5 +283,26 @@ class SQLiteDataLayer(BaseDataLayer):
     async def delete_element(self, element_id: str): pass
     async def upsert_feedback(self, feedback): return ""
     async def delete_feedback(self, feedback_id): pass
-    async def get_thread_author(self, thread_id): return ""
+    async def get_thread_author(self, thread_id: str) -> str:
+        """
+        Vraća identifier/userId iz threads tablice za dati thread_id.
+        Chainlit često poziva ovu funkciju prije get_thread za author check.
+        """
+        print(f"[DB] ENTER get_thread_author thread_id={thread_id}")
+        await ensure_db_init()
+        
+        async with aiosqlite.connect(self.db_path) as db:
+            cursor = await db.execute(
+                "SELECT userId, userIdentifier FROM threads WHERE id = ?", 
+                (str(thread_id),)
+            )
+            row = await cursor.fetchone()
+            
+            if row:
+                user_id = row[0] or row[1]  # userId ili userIdentifier
+                print(f"[DB] get_thread_author found: thread_id={thread_id} author={user_id}")
+                return user_id or ""
+            else:
+                print(f"[DB] get_thread_author NOT FOUND: thread_id={thread_id}")
+                return ""
     async def delete_user_session(self, id): pass

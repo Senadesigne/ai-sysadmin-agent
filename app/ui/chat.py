@@ -1,6 +1,19 @@
 
 # import app.patches # Apply 500 error fix - DISABLED due to auth conflict
 import chainlit as cl
+import chainlit.data as cl_data
+from app.ui.data_layer import SQLiteDataLayer
+
+_dl = SQLiteDataLayer()
+
+# Postavi na sva poznata mjesta (različite Chainlit verzije koriste različito)
+cl_data._data_layer = _dl
+setattr(cl_data, "data_layer", _dl)
+setattr(cl, "data_layer", _dl)
+
+print(f"[DB] Active data layer (cl_data._data_layer) = {type(cl_data._data_layer).__name__}")
+print(f"[DB] Active data layer (cl.data_layer)      = {type(getattr(cl, 'data_layer', None)).__name__}")
+
 import sys
 import os
 import json
@@ -17,24 +30,32 @@ from chainlit.input_widget import Select, Switch, Slider
 import app.core.persistence as p
 import chainlit.data as cl_data
 
-# Register custom SQLite data layer
-from app.ui.data_layer import SQLiteDataLayer
-cl.data_layer = SQLiteDataLayer()
-print("[DB] Custom SQLiteDataLayer registered")
+# (Moved to top - hard registration)
 
-# @cl.password_auth_callback
-# def auth(username, password):
-#     # Razvojni "backdoor" - u produkciji zamijeniti s provjerom iz baze
-#     # Prihvacamo 'admin' ili Senadov email
-#     valid_users = ["admin", "senad.dupljak@gmail.com"]
-#     if username in valid_users and password == "admin":
-#         return cl.User(identifier="antigravity_dev_user", metadata={"role": "admin"})
-#     return None
+@cl.password_auth_callback
+def auth(username: str, password: str):
+    """
+    Password authentication callback for development.
+    Accepts hardcoded credentials: admin/admin
+    """
+    print(f"[AUTH] Login attempt: username={username}")
+    
+    # Dev credentials
+    if username == "admin" and password == "admin":
+        print(f"[AUTH] Login success user={username}")
+        return cl.User(
+            identifier="antigravity_dev_user", 
+            metadata={"role": "admin", "username": username}
+        )
+    
+    print(f"[AUTH] Login failed for user={username}")
+    return None
 
-@cl.header_auth_callback
-def header_auth(headers):
-    # Auto-login for dev environment to bypass potential session state bugs
-    return cl.User(identifier="antigravity_dev_user", metadata={"role": "admin"})
+# Disable header auth to force password auth
+# @cl.header_auth_callback
+# def header_auth(headers):
+#     # Auto-login for dev environment to bypass potential session state bugs
+#     return cl.User(identifier="antigravity_dev_user", metadata={"role": "admin"})
 # MONKEYPATCH: Fix for older libraries expecting langchain.verbose
 import langchain
 if not hasattr(langchain, 'verbose'):
@@ -55,11 +76,17 @@ from app.core.persistence import SQLiteDataLayer
 # Load env vars (specifically SSH_KEY_PATH)
 load_dotenv()
 
+# Auth startup log
+auth_secret = os.getenv("CHAINLIT_AUTH_SECRET")
+if auth_secret:
+    print(f"[AUTH] CHAINLIT_AUTH_SECRET is present (length: {len(auth_secret)})")
+else:
+    print("[AUTH] WARNING: CHAINLIT_AUTH_SECRET not found in .env")
+
 rag_engine = RagEngine()
 
 # --- PERSISTENCE SETUP ---
-# Initialize the custom Data Layer for Chat History
-cl_data._data_layer = SQLiteDataLayer()
+# (Data layer already registered at top)
 
 def extract_json_action(text: str):
     """
