@@ -1,5 +1,6 @@
 import aiosqlite
 import logging
+import asyncio
 from pathlib import Path
 
 # DB path stabilizacija - apsolutni path u root projekta
@@ -9,6 +10,10 @@ DB_NAME = str(ROOT_DIR / "chainlit.db")
 
 # Debug print - prikaži gdje je DB
 print(f"[DB] DB path: {DB_NAME}")
+
+# Jednokratna inicijalizacija
+_db_initialized = False
+_db_init_lock = asyncio.Lock()
 
 async def init_db():
     """Inicijalizacija SQLite baze s potrebnim tablicama za Chainlit"""
@@ -104,3 +109,14 @@ async def init_db():
         
         await db.commit()
         # logging.info(f" Baza inicijalizirana: {DB_NAME}")
+
+async def ensure_db_init() -> None:
+    global _db_initialized
+    if _db_initialized:
+        return
+    async with _db_init_lock:
+        if _db_initialized:
+            return
+        await init_db()
+        _db_initialized = True
+        print("[DB] init_db ensured (lazy)")
