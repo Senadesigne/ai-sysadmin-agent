@@ -74,7 +74,7 @@ class SQLiteDataLayer(BaseDataLayer):
 
     # --- THREAD METHODS ---
     async def get_thread(self, thread_id: str) -> Optional[ThreadDict]:
-        print(f"[DB] get_thread called with id={thread_id}")
+        print(f"[DB] ENTER get_thread thread_id={thread_id}")
         await ensure_db_init()
         async with aiosqlite.connect(self.db_path) as db:
             # Thread - use SELECT * to ensure we get all fields
@@ -116,7 +116,7 @@ class SQLiteDataLayer(BaseDataLayer):
             return thread_data
 
     async def list_threads(self, pagination, filters):
-        print(f"[DB] list_threads called pagination={pagination} filters={filters}")
+        print(f"[DB] ENTER list_threads pagination={pagination} filters={filters}")
         await ensure_db_init()
         async with aiosqlite.connect(self.db_path) as db:
             query = "SELECT id, createdAt, name, userId, userIdentifier, tags, metadata FROM threads"
@@ -154,7 +154,7 @@ class SQLiteDataLayer(BaseDataLayer):
                     "metadata": json.loads(row[6]) if row[6] else {}
                 })
             
-            print(f"[DB] list_threads (NO user filter) -> {len(threads)} threads")
+            print(f"[DB] EXIT list_threads -> returning {len(threads)} threads")
             return PaginatedResponse(data=threads, pageInfo={"hasNextPage": False, "startCursor": None, "endCursor": None})
 
     async def update_thread(self, thread_id: str, name: Optional[str] = None, user_id: Optional[str] = None, metadata: Optional[Dict] = None, tags: Optional[List[str]] = None):
