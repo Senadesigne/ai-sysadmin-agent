@@ -17,6 +17,11 @@ from chainlit.input_widget import Select, Switch, Slider
 import app.core.persistence as p
 import chainlit.data as cl_data
 
+# Register custom SQLite data layer
+from app.ui.data_layer import SQLiteDataLayer
+cl.data_layer = SQLiteDataLayer()
+print("[DB] Custom SQLiteDataLayer registered")
+
 # @cl.password_auth_callback
 # def auth(username, password):
 #     # Razvojni "backdoor" - u produkciji zamijeniti s provjerom iz baze
