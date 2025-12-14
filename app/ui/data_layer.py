@@ -122,8 +122,8 @@ class SQLiteDataLayer(BaseDataLayer):
             conditions = []
             
             if filters.userId:
-                conditions.append("userIdentifier = ?")
-                params.append(filters.userId)
+                conditions.append("(userId = ? OR userIdentifier = ?)")
+                params.extend([filters.userId, filters.userId])
             if filters.search:
                 conditions.append("name LIKE ?")
                 params.append(f"%{filters.search}%")
@@ -150,7 +150,8 @@ class SQLiteDataLayer(BaseDataLayer):
                     "tags": json.loads(row[5]) if row[5] else [],
                     "metadata": json.loads(row[6]) if row[6] else {}
                 })
-                
+            
+            print(f"[DB] list_threads userId={filters.userId} -> {len(threads)} threads")
             return PaginatedResponse(data=threads, pageInfo={"hasNextPage": False, "startCursor": None, "endCursor": None})
 
     async def update_thread(self, thread_id: str, name: Optional[str] = None, user_id: Optional[str] = None, metadata: Optional[Dict] = None, tags: Optional[List[str]] = None):
