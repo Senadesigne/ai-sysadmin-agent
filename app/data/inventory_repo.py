@@ -1,14 +1,21 @@
-import os
+from pathlib import Path
+
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session, selectinload
+
+from app.config import settings
 from app.data.models import Base, Device, Component
 
+
 class InventoryRepository:
-    def __init__(self, db_path: str = "inventory.db"):
-        # Ensure the database is created in the project root or specified path
-        # If db_path is just a filename, it will be in the current working directory
-        # We might want to make it absolute relative to the app root in a real scenario
-        self.db_url = f"sqlite:///{db_path}"
+    def __init__(self, db_path: str | Path | None = None):
+        settings.ensure_data_dirs()
+
+        path = Path(db_path) if db_path else settings.INVENTORY_DB_PATH
+        path = path.expanduser().resolve()
+
+        # SQLAlchemy sqlite URL: use forward slashes for cross-platform stability
+        self.db_url = f"sqlite:///{path.as_posix()}"
         self.engine = create_engine(self.db_url, echo=False)
 
     def initialize_db(self):

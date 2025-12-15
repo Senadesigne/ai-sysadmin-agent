@@ -41,9 +41,12 @@ app/data/chroma_db/**
 chroma.sqlite3
 
 
+# Centralized data directory
+.data/
+.data/**
+
 # Ignore local dev files
 plan_za_sidebar.md
 test_*.py
 .chainlit/translations/
-app/config/
 

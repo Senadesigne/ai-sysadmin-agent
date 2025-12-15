@@ -3,6 +3,7 @@
 import chainlit as cl
 import chainlit.data as cl_data
 from app.ui.data_layer import SQLiteDataLayer
+from app.ui.db import ensure_db_init
 
 _dl = SQLiteDataLayer()
 
@@ -197,6 +198,7 @@ async def set_starters():
 
 @cl.on_chat_start
 async def start():
+    await ensure_db_init()
     repo = InventoryRepository()
     repo.initialize_db()
     # Clean start - no welcome message

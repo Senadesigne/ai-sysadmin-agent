@@ -1,4 +1,6 @@
 import os
+from pathlib import Path
+
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_community.vectorstores import Chroma
 from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -6,11 +8,17 @@ from langchain_core.documents import Document
 from llama_parse import LlamaParse
 from dotenv import load_dotenv
 
+from app.config import settings
+
 load_dotenv()
 
+
 class RagEngine:
-    def __init__(self, persist_directory: str = "./app/data/chroma_db"):
-        self.persist_directory = persist_directory
+    def __init__(self, persist_directory: str | None = None):
+        settings.ensure_data_dirs()
+
+        persist_path = Path(persist_directory) if persist_directory else settings.CHROMA_DIR
+        self.persist_directory = str(persist_path)
         
         api_key = os.getenv("GOOGLE_API_KEY")
         if not api_key:

@@ -1,24 +1,18 @@
 import aiosqlite
-import logging
 import asyncio
-from pathlib import Path
+from app.config import settings
 
-# DB path stabilizacija - apsolutni path u root projekta
-# db.py je u app/ui/, pa trebamo ići 2 razine gore do root-a
-ROOT_DIR = Path(__file__).resolve().parents[2]
-DB_NAME = str(ROOT_DIR / "chainlit.db")
+DB_PATH = settings.CHAINLIT_DB_PATH
 
-# Debug print - prikaži gdje je DB
-print(f"[DB] DB path: {DB_NAME}")
-
-# Jednokratna inicijalizacija
 _db_initialized = False
 _db_init_lock = asyncio.Lock()
 
 async def init_db():
-    """Inicijalizacija SQLite baze s potrebnim tablicama za Chainlit"""
-    print(f"[DB] Inicijaliziram DB: {DB_NAME}")
-    async with aiosqlite.connect(DB_NAME) as db:
+    """Initialize SQLite database with required tables for Chainlit persistence."""
+    settings.ensure_data_dirs()
+    print(f"[starter-kit] Using Chainlit DB at: {DB_PATH}")
+
+    async with aiosqlite.connect(str(DB_PATH)) as db:
         # Omogući Foreign Keys
         await db.execute("PRAGMA foreign_keys = ON;")
 
@@ -117,12 +111,9 @@ async def init_db():
             ) 
             WHERE (userIdentifier IS NULL OR userIdentifier = 'system') AND userId IS NOT NULL
         """)
-        migrated_count = cursor.rowcount
-        if migrated_count > 0:
-            print(f"[DB] Migrated {migrated_count} threads with userIdentifier (including system -> proper identifier)")
+        _ = cursor.rowcount  # keep migration behavior; noise cleanup is a later step
         
         await db.commit()
-        print("[DB] init_db complete (tables ensured: users, threads, steps, elements, feedbacks)")
 
 async def ensure_db_init() -> None:
     global _db_initialized
