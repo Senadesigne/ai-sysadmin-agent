@@ -21,17 +21,17 @@ Zamijenite <GENERATE_ME> u .env fajlu sa generiranim secret-om.
 
 KORAK 3: Dodajte API ključeve (opcionalno)
 -------------------------------------------
-# Google API Key for RAG/LLM (dodajte svoj ključ ovdje)
-GOOGLE_API_KEY=your-google-api-key-here
+Uredite .env fajl i dodajte potrebne vrijednosti:
 
-# SSH Key Path (ako je potrebno)
+GOOGLE_API_KEY=your-google-api-key-here
 SSH_KEY_PATH=/path/to/your/ssh/key
 
 NAPOMENE:
 1. NIKAD ne commitajte .env fajl u git
-2. Za Google API key idite na: https://makersuite.google.com/app/apikey
+2. Za Google API key idite na: `https://makersuite.google.com/app/apikey`
 3. Bez Google API key-a, RAG funkcionalnost neće raditi ali chat će
-4. Koristite .env.example kao template za sve potrebne varijable
+4. SSH_KEY_PATH je potreban za remote konekcije
+5. Koristite .env.example kao template za sve potrebne varijable
 
 NAKON POSTAVLJANJA .env FAJLA:
 - Restartajte aplikaciju
