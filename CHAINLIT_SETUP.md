@@ -52,7 +52,14 @@ Threadovi se automatski imenuju prema prvoj poruci korisnika (prvih 50 znakova).
 
 ## Instalacija i pokretanje
 
-1. **Instaliraj dependency**:
+1. **Postavi environment varijable**:
+   ```bash
+   # Kopiraj template i konfiguriraj
+   cp .env.example .env
+   # Generiraj CHAINLIT_AUTH_SECRET i dodaj u .env
+   ```
+
+2. **Instaliraj dependency**:
    ```bash
    pip install aiosqlite
    ```
@@ -69,7 +76,7 @@ Threadovi se automatski imenuju prema prvoj poruci korisnika (prvih 50 znakova).
 
 4. **Login podaci**:
    - Username: `admin`
-   - Password: `admin`
+   - Password: `admin` (change in production - see .env.example)
 
 ## Rezultat
 

@@ -37,7 +37,7 @@ Non-goals v1:
 ## Popis problema za riješiti (iz ovog repoa)
 
 - **Hardcoded auth**: `admin/admin` u `app/ui/chat.py`.
-- **Secrets u dokumentima**: `env_setup_instructions.txt` sadrži stvarni `CHAINLIT_AUTH_SECRET` (ne smije biti u templateu).
+- **Secrets u dokumentima**: ✅ RIJEŠENO - dodana `.env.example` template, uklonjeni secrets iz dokumentacije.
 - **Optional LLM/RAG**: `app/llm/client.py` može vratiti `None` → potencijalni crash kad se pozove `.invoke`.
 - **Data pathovi**:
   - `chainlit.db` je u rootu (ok), ali treba standardizirati `.data/` ili slično.
