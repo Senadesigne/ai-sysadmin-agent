@@ -3,6 +3,8 @@ import asyncio
 from app.config import settings
 
 DB_PATH = settings.CHAINLIT_DB_PATH
+# Backward-compatible alias (some modules still import DB_NAME)
+DB_NAME = str(DB_PATH)
 
 _db_initialized = False
 _db_init_lock = asyncio.Lock()
