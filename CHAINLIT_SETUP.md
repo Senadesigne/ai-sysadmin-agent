@@ -33,10 +33,19 @@ Implementiran je **Custom Data Layer** koristeći **aiosqlite** za lokalnu perzi
 ### Password Authentication
 ```python
 @cl.password_auth_callback
-def password_auth(username: str, password: str) -> Optional[cl.User]:
-    if username == "admin" and password == "admin":
-        return cl.User(identifier="admin", metadata={"role": "admin"})
-    return None
+async def auth_callback(username: str, password: str):
+    # DEV no-auth bypass
+    if settings.AUTH_MODE == "dev" and settings.DEV_NO_AUTH:
+        return cl.User(identifier=settings.ADMIN_IDENTIFIER, metadata={"role": "admin", "mode": "dev-no-auth"})
+    
+    # Prod / Dev with auth: require password configured
+    if not settings.ADMIN_PASSWORD or username != settings.ADMIN_IDENTIFIER:
+        return None
+        
+    if not secrets.compare_digest(password, settings.ADMIN_PASSWORD):
+        return None
+        
+    return cl.User(identifier=username, metadata={"role": "admin", "mode": settings.AUTH_MODE})
 ```
 
 ### Automatska inicijalizacija baze
@@ -75,8 +84,8 @@ Threadovi se automatski imenuju prema prvoj poruci korisnika (prvih 50 znakova).
    ```
 
 4. **Login podaci**:
-   - Username: `admin`
-   - Password: `admin` (change in production - see .env.example)
+   - Dev mode (default): No login required (DEV_NO_AUTH=true)
+   - Prod mode: Username: ADMIN_IDENTIFIER, Password: ADMIN_PASSWORD (set in .env)
 
 ## Rezultat
 

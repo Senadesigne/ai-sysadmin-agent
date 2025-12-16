@@ -36,7 +36,7 @@ Non-goals v1:
 
 ## Popis problema za riješiti (iz ovog repoa)
 
-- **Hardcoded auth**: `admin/admin` u `app/ui/chat.py`.
+- **Hardcoded auth**: ✅ RIJEŠENO - implementiran dev/prod auth bez hardcoded kredencijala.
 - **Secrets u dokumentima**: ✅ RIJEŠENO - dodana `.env.example` template, uklonjeni secrets iz dokumentacije.
 - **Optional LLM/RAG**: `app/llm/client.py` može vratiti `None` → potencijalni crash kad se pozove `.invoke`.
 - **Data pathovi**:
@@ -98,7 +98,7 @@ Non-goals v1:
 - **Test:** “fresh clone” scenarij: kopiraj `.env.example` → `.env`, start app, nema leakova.
 - **Commit:** `docs: add .env.example and remove embedded secrets`
 
-### 3) Auth: ukloni hardcoded admin/admin, uvedi dev/prod režime
+### 3) Auth: ✅ RIJEŠENO - uklonjen hardcoded admin/admin, uvedeni dev/prod režimi
 - **Fajlovi:** `app/ui/chat.py`, `.chainlit/config.toml` (po potrebi)
 - **Što se mijenja:**
   - `DEV_AUTH_ENABLED=true` (default) i `DEV_AUTH_USER/DEV_AUTH_PASS` iz env-a.

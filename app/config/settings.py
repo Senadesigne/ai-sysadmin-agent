@@ -15,6 +15,14 @@ CHROMA_DIR = DATA_DIR / "chroma_db"
 TMP_DIR = DATA_DIR / "tmp"
 
 
+# Auth configuration
+AUTH_MODE = os.getenv("AUTH_MODE", "dev").lower()  # dev | prod
+DEV_NO_AUTH = os.getenv("DEV_NO_AUTH", "true").lower() in ("1", "true", "yes")
+
+ADMIN_IDENTIFIER = os.getenv("ADMIN_IDENTIFIER", "admin")  # not secret
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "")  # secret in .env only
+
+
 def ensure_data_dirs() -> None:
     """Ensure all product data directories exist."""
     DATA_DIR.mkdir(parents=True, exist_ok=True)

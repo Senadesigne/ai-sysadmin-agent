@@ -4,6 +4,7 @@ import chainlit as cl
 import chainlit.data as cl_data
 from app.ui.data_layer import SQLiteDataLayer
 from app.ui.db import ensure_db_init
+import secrets
 
 _dl = SQLiteDataLayer()
 
@@ -30,29 +31,35 @@ from app.rag.engine import RagEngine
 from chainlit.input_widget import Select, Switch, Slider
 import app.core.persistence as p
 import chainlit.data as cl_data
+from app.config import settings
 
 # (Moved to top - hard registration)
 
 @cl.password_auth_callback
-def auth(username: str, password: str):
+async def auth_callback(username: str, password: str):
     """
-    Password authentication callback for development.
-    Accepts hardcoded credentials: admin/admin
+    Password authentication callback with dev/prod modes.
+    No hardcoded credentials - all validation from environment variables.
     """
-    print(f"[AUTH] Login attempt: username={username}")
-    
-    # Dev credentials
-    if username == "admin" and password == "admin":
-        user_identifier = "antigravity_dev_user"
-        print(f"[AUTH] Login success user={username}")
-        print(f"[AUTH] success identifier={user_identifier}")
-        return cl.User(
-            identifier=user_identifier, 
-            metadata={"role": "admin", "username": username}
-        )
-    
-    print(f"[AUTH] Login failed for user={username}")
-    return None
+    await ensure_db_init()
+
+    # DEV no-auth bypass
+    if settings.AUTH_MODE == "dev" and settings.DEV_NO_AUTH:
+        print("[AUTH] DEV_NO_AUTH enabled: authentication bypassed")
+        return cl.User(identifier=settings.ADMIN_IDENTIFIER, metadata={"role": "admin", "mode": "dev-no-auth"})
+
+    # Prod / Dev with auth: require password configured
+    if not settings.ADMIN_PASSWORD:
+        print("[AUTH] ADMIN_PASSWORD is missing; refusing login.")
+        return None
+
+    if username != settings.ADMIN_IDENTIFIER:
+        return None
+
+    if not secrets.compare_digest(password, settings.ADMIN_PASSWORD):
+        return None
+
+    return cl.User(identifier=username, metadata={"role": "admin", "mode": settings.AUTH_MODE})
 
 # Disable header auth to force password auth
 # @cl.header_auth_callback

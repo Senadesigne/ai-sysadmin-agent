@@ -19,21 +19,49 @@ python -c "import secrets; print(secrets.token_urlsafe(32))"
 
 Zamijenite <GENERATE_ME> u .env fajlu sa generiranim secret-om.
 
-KORAK 3: Dodajte API ključeve (opcionalno)
+KORAK 3: Konfiguracija autentifikacije
+---------------------------------------
+Aplikacija podržava dva načina rada:
+
+RAZVOJ (DEV MODE):
+- AUTH_MODE=dev
+- DEV_NO_AUTH=true (nema login prompt)
+- Aplikacija će raditi bez lozinke
+
+PRODUKCIJA (PROD MODE):
+- AUTH_MODE=prod
+- DEV_NO_AUTH=false
+- ADMIN_PASSWORD=vaša-sigurna-lozinka
+
+Za lokalni razvoj, ostavite zadane vrijednosti u .env:
+AUTH_MODE=dev
+DEV_NO_AUTH=true
+
+Za produkciju, postavite:
+AUTH_MODE=prod
+DEV_NO_AUTH=false
+ADMIN_PASSWORD=vaša-sigurna-lozinka
+
+KORAK 4: Dodajte API ključeve (opcionalno)
 -------------------------------------------
 Uredite .env fajl i dodajte potrebne vrijednosti:
 
+# Optional - for RAG/LLM functionality
 GOOGLE_API_KEY=your-google-api-key-here
+
+# Optional - for remote SSH connections
 SSH_KEY_PATH=/path/to/your/ssh/key
 
 NAPOMENE:
 1. NIKAD ne commitajte .env fajl u git
 2. Za Google API key idite na: `https://makersuite.google.com/app/apikey`
 3. Bez Google API key-a, RAG funkcionalnost neće raditi ali chat će
-4. SSH_KEY_PATH je potreban za remote konekcije
+4. SSH_KEY_PATH je opcionalan; potreban je samo za remote konekcije
 5. Koristite .env.example kao template za sve potrebne varijable
+6. U dev modu nema hardcoded lozinki - sve iz environment varijabli
 
 NAKON POSTAVLJANJA .env FAJLA:
 - Restartajte aplikaciju
-- Sidebar bi trebao raditi
+- U dev modu: nema login prompt-a
+- U prod modu: login s ADMIN_IDENTIFIER/ADMIN_PASSWORD
 - Chat će raditi (možda bez RAG konteksta ako nema Google API key)
