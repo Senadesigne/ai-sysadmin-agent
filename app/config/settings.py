@@ -4,11 +4,12 @@ import os
 from pathlib import Path
 from dotenv import load_dotenv
 
-# Load .env file before reading any environment variables
-load_dotenv(override=True)
-
 # Repo root = .../app/config/settings.py -> parents[2] == repo root
 ROOT_DIR = Path(__file__).resolve().parents[2]
+ENV_PATH = ROOT_DIR / ".env"
+
+print(f"[ENV] Loading .env from: {ENV_PATH} (exists={ENV_PATH.exists()})")
+load_dotenv(dotenv_path=ENV_PATH, override=True)
 
 # Allow override, default to repo-root/.data
 DATA_DIR = Path(os.getenv("DATA_DIR", str(ROOT_DIR / ".data"))).expanduser().resolve()
