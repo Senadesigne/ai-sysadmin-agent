@@ -33,6 +33,9 @@ import app.core.persistence as p
 import chainlit.data as cl_data
 from app.config import settings
 
+# Debug: Print resolved auth settings (no secrets)
+print(f"[AUTH] Resolved settings: AUTH_MODE={settings.AUTH_MODE} DEV_NO_AUTH={settings.DEV_NO_AUTH} ADMIN_IDENTIFIER={settings.ADMIN_IDENTIFIER}")
+
 # (Moved to top - hard registration)
 
 @cl.password_auth_callback
@@ -41,6 +44,7 @@ async def auth_callback(username: str, password: str):
     Password authentication callback with dev/prod modes.
     No hardcoded credentials - all validation from environment variables.
     """
+    print(f"[AUTH] auth_callback called: AUTH_MODE={settings.AUTH_MODE} DEV_NO_AUTH={settings.DEV_NO_AUTH} username={username}")
     await ensure_db_init()
 
     # DEV no-auth bypass

@@ -2,6 +2,10 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from dotenv import load_dotenv
+
+# Load .env file before reading any environment variables
+load_dotenv(override=False)
 
 # Repo root = .../app/config/settings.py -> parents[2] == repo root
 ROOT_DIR = Path(__file__).resolve().parents[2]
