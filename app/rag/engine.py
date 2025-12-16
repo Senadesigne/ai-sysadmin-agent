@@ -6,11 +6,10 @@ from langchain_community.vectorstores import Chroma
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_core.documents import Document
 from llama_parse import LlamaParse
-from dotenv import load_dotenv
 
 from app.config import settings
 
-load_dotenv()
+# Environment variables are loaded in app.config.settings
 
 
 class RagEngine:

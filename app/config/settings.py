@@ -11,6 +11,13 @@ ENV_PATH = ROOT_DIR / ".env"
 print(f"[ENV] Loading .env from: {ENV_PATH} (exists={ENV_PATH.exists()})")
 load_dotenv(dotenv_path=ENV_PATH, override=True)
 
+# DIAGNOSTIC: Print raw environment values after loading
+print(f"[ENV] Raw environment values after load_dotenv:")
+print(f"[ENV]   AUTH_MODE = {os.getenv('AUTH_MODE', 'NOT_SET')}")
+print(f"[ENV]   DEV_NO_AUTH = {os.getenv('DEV_NO_AUTH', 'NOT_SET')}")
+print(f"[ENV]   ADMIN_IDENTIFIER = {os.getenv('ADMIN_IDENTIFIER', 'NOT_SET')}")
+print(f"[ENV]   ADMIN_PASSWORD is set = {bool(os.getenv('ADMIN_PASSWORD'))}")
+
 # Allow override, default to repo-root/.data
 DATA_DIR = Path(os.getenv("DATA_DIR", str(ROOT_DIR / ".data"))).expanduser().resolve()
 

@@ -20,7 +20,6 @@ import sys
 import os
 import json
 import re
-from dotenv import load_dotenv
 
 # Ensure the root directory is in sys.path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
@@ -87,8 +86,7 @@ from langchain_core.messages import HumanMessage
 
 from app.core.persistence import SQLiteDataLayer
 
-# Load env vars (specifically SSH_KEY_PATH)
-load_dotenv()
+# Environment variables are loaded in app.config.settings
 
 # Auth startup log
 auth_secret = os.getenv("CHAINLIT_AUTH_SECRET")

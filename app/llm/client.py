@@ -1,9 +1,7 @@
 import os
 from langchain_google_genai import ChatGoogleGenerativeAI
-from dotenv import load_dotenv
 
-# Load environment variables
-load_dotenv()
+# Environment variables are loaded in app.config.settings
 
 def get_llm(model_name: str = "gemini-3-pro-preview", temperature: float = 0.0) -> ChatGoogleGenerativeAI:
     """
