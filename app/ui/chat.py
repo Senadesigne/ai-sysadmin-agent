@@ -1,4 +1,4 @@
-from app.config.settings import settings
+from app.config import settings
 
 # import app.patches # Apply 500 error fix - DISABLED due to auth conflict
 import chainlit as cl
