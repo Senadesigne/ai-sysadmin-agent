@@ -22,6 +22,9 @@ import sys
 import os
 import json
 import re
+import tempfile
+import uuid
+from pathlib import Path
 
 # Ensure the root directory is in sys.path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
@@ -367,27 +370,58 @@ DANAŠNJI ZAHTJEV: {message.content}
         await cl.Message(content=f"Greška: {str(e)}").send()
 
 # Helpers
+def create_temp_file(original_filename: str) -> str:
+    """
+    Create a safe temporary file path with unique name.
+    Uses .data/tmp/ directory and ensures it exists.
+    Returns the full path to the temporary file.
+    """
+    # Create .data/tmp directory if it doesn't exist
+    temp_dir = Path(".data/tmp")
+    temp_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Generate unique filename to avoid collisions
+    file_ext = Path(original_filename).suffix
+    unique_name = f"{uuid.uuid4().hex}_{Path(original_filename).stem}{file_ext}"
+    
+    return str(temp_dir / unique_name)
+
 async def handle_pdf(element):
     msg = cl.Message(content=f"⚙️ Analiziram PDF: {element.name}...")
     await msg.send()
+    temp_path = None
     try:
-        temp_path = f"temp_{element.name}"
+        # Create safe temporary file
+        temp_path = create_temp_file(element.name)
         with open(temp_path, "wb") as f:
-            with open(element.path, "rb") as s: f.write(s.read())
+            with open(element.path, "rb") as s: 
+                f.write(s.read())
+        
         num = await cl.make_async(rag_engine.ingest_document)(temp_path)
         msg.content = f"✅ Naučeno {num} segmenata."
         await msg.update()
     except Exception as e:
         msg.content = f"❌ Greška: {e}"
         await msg.update()
+    finally:
+        # Always cleanup temp file if it was created
+        if temp_path and os.path.exists(temp_path):
+            try:
+                os.remove(temp_path)
+            except Exception:
+                pass  # Ignore cleanup errors
 
 async def handle_csv(element):
     msg = cl.Message(content=f"📊 Uvozim CSV: {element.name}...")
     await msg.send()
+    temp_path = None
     try:
-        temp_path = f"temp_{element.name}"
+        # Create safe temporary file
+        temp_path = create_temp_file(element.name)
         with open(temp_path, "wb") as f:
-            with open(element.path, "rb") as s: f.write(s.read())
+            with open(element.path, "rb") as s: 
+                f.write(s.read())
+        
         repo = InventoryRepository()
         count = await cl.make_async(repo.bulk_import_from_csv)(temp_path)
         msg.content = f"✅ Dodano {count} uređaja."
@@ -395,3 +429,10 @@ async def handle_csv(element):
     except Exception as e:
         msg.content = f"❌ Greška: {e}"
         await msg.update()
+    finally:
+        # Always cleanup temp file if it was created
+        if temp_path and os.path.exists(temp_path):
+            try:
+                os.remove(temp_path)
+            except Exception:
+                pass  # Ignore cleanup errors
