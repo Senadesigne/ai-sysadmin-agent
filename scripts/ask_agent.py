@@ -4,7 +4,7 @@ import os
 # Add project root to path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from app.rag.engine import RagEngine
+from app.rag.engine import get_rag_engine
 
 def main():
     if len(sys.argv) < 2:
@@ -17,7 +17,7 @@ def main():
     print("-" * 30)
 
     try:
-        engine = RagEngine()
+        engine = get_rag_engine()
         results = engine.query(question, k=3)
         
         if not results:

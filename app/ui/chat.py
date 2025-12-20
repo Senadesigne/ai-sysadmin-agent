@@ -26,7 +26,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '.
 
 from app.data.inventory_repo import InventoryRepository
 from app.llm.client import get_llm
-from app.rag.engine import RagEngine
+from app.rag.engine import get_rag_engine
 from chainlit.input_widget import Select, Switch, Slider
 import app.core.persistence as p
 import chainlit.data as cl_data
@@ -56,13 +56,32 @@ async def auth_callback(username: str, password: str):
         print("[AUTH] ADMIN_PASSWORD is missing; refusing login.")
         return None
 
-    if username != settings.ADMIN_IDENTIFIER:
+    # Normalize inputs
+    expected_user = (settings.ADMIN_IDENTIFIER or "").strip()
+    expected_pass = (settings.ADMIN_PASSWORD or "")
+    provided_user = (username or "").strip()
+    provided_pass = (password or "")
+
+    # Safe debug logs (DO NOT print the password itself)
+    print(f"[AUTH][DEBUG] Expected username: {repr(expected_user)}")
+    print(f"[AUTH][DEBUG] Provided username: {repr(provided_user)}")
+    print(f"[AUTH][DEBUG] Expected password length: {len(expected_pass)}")
+    print(f"[AUTH][DEBUG] Provided password length: {len(provided_pass)}")
+    print(f"[AUTH][DEBUG] Username equality: {provided_user.lower() == expected_user.lower()}")
+    print(f"[AUTH][DEBUG] Password stripped equality: {provided_pass.strip() == expected_pass.strip()}")
+
+    # Make username check case-insensitive and trimmed
+    if provided_user.lower() != expected_user.lower():
+        print("[AUTH][DEBUG] Username mismatch -> refusing login")
         return None
 
-    if not secrets.compare_digest(password, settings.ADMIN_PASSWORD):
+    # Make password check robust to whitespace/CRLF
+    if not secrets.compare_digest(provided_pass.strip(), expected_pass.strip()):
+        print("[AUTH][DEBUG] Password mismatch -> refusing login")
         return None
 
-    return cl.User(identifier=username, metadata={"role": "admin", "mode": settings.AUTH_MODE})
+    # On success return
+    return cl.User(identifier=expected_user, metadata={"role": "admin", "mode": settings.AUTH_MODE})
 
 # Disable header auth to force password auth
 # @cl.header_auth_callback
@@ -95,7 +114,7 @@ if auth_secret:
 else:
     print("[AUTH] WARNING: CHAINLIT_AUTH_SECRET not found in .env")
 
-rag_engine = RagEngine()
+rag_engine = get_rag_engine()
 
 # --- PERSISTENCE SETUP ---
 # (Data layer already registered at top)

@@ -27,6 +27,9 @@ DEV_NO_AUTH = os.getenv("DEV_NO_AUTH", "true").lower() in ("1", "true", "yes")
 ADMIN_IDENTIFIER = os.getenv("ADMIN_IDENTIFIER", "admin")  # not secret
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "")  # secret in .env only
 
+# RAG configuration
+RAG_ENABLED = os.getenv("RAG_ENABLED", "false").lower() in ("1", "true", "yes")
+
 
 def ensure_data_dirs() -> None:
     """Ensure all product data directories exist."""
