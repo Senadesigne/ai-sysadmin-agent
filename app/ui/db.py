@@ -113,7 +113,8 @@ async def init_db():
             ) 
             WHERE (userIdentifier IS NULL OR userIdentifier = 'system') AND userId IS NOT NULL
         """)
-        _ = cursor.rowcount  # keep migration behavior; noise cleanup is a later step
+        if settings.DEBUG:
+            print(f"[DB] Migration updated {cursor.rowcount} threads with userIdentifier")
         
         await db.commit()
 

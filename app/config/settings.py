@@ -30,6 +30,9 @@ ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "")  # secret in .env only
 # RAG configuration
 RAG_ENABLED = os.getenv("RAG_ENABLED", "false").lower() in ("1", "true", "yes")
 
+# Debug configuration
+DEBUG = os.getenv("DEBUG", "false").lower() in ("1", "true", "yes")
+
 
 def ensure_data_dirs() -> None:
     """Ensure all product data directories exist."""

@@ -1,0 +1,10 @@
+# Sample KB Document
+
+This is a sample knowledge base document for testing RAG.
+
+## FAQ
+**Q: What is this?**  
+A: A placeholder document so you can verify that ingestion and retrieval work.
+
+**Q: What should I replace it with?**  
+A: Your own docs: product docs, internal FAQs, SOPs, manuals, etc.

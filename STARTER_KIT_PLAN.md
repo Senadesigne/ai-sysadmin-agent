@@ -126,22 +126,33 @@ Non-goals v1:
 - **Test:** ✅ bez ključeva app radi; s ključem radi LLM i RAG ingest/query.
 - **Commit:** `feat: optional LLM/RAG with graceful fallbacks`
 
-### 5) Ukloni dupli persistence modul (jedna istina)
+### 5) Ukloni dupli persistence modul (jedna istina) (DONE)
+- **Status: DONE**
 - **Fajlovi:** `app/core/persistence.py`, `app/ui/data_layer.py`, `app/ui/chat.py`
 - **Što se mijenja:**
   - Odabrati jednu implementaciju (preporuka: `app/ui/data_layer.py`).
   - Drugu ukloniti ili pretvoriti u `legacy/` uz jasnu oznaku (bez importanja).
-- **Test:** sidebar threads + resume rade; nema import konfuzije.
+- **Completed:**
+  - **Step 5 is COMPLETE.**
+  - **`app/ui/data_layer.py` is the single source of truth for persistence.**
+  - **Legacy persistence module removed to eliminate confusion.**
+- **Test:** ✅ sidebar threads + resume rade; nema import konfuzije.
 - **Commit:** `chore: remove unused legacy persistence implementation`
 
-### 6) Reduce debug noise & keep init robust (no new startup hooks)
+### 6) Reduce debug noise & keep init robust (no new startup hooks) (DONE)
+- **Status: DONE**
 - **Fajlovi:** `app/ui/data_layer.py`, `app/ui/db.py`, `app/ui/chat.py`
 - **Što se mijenja:**
-  - V1 **ne uvodi nove Chainlit startup hookove**: zadržati postojeći `ensure_db_init()` pristup kao “source of truth” za init.
+  - V1 **ne uvodi nove Chainlit startup hookove**: zadržati postojeći `ensure_db_init()` pristup kao "source of truth" za init.
   - Smanjiti debug noise: print/log poruke iza `DEBUG` flaga; ukloniti redundantne logove.
   - Fokus: čitljiv output, bez promjene ponašanja persistence lifecycla.
-- **Test:** pokreni app i provjeri da nema “spam” logova; sidebar/resume i dalje rade kao prije.
-- **Commit:** `chore: reduce persistence debug noise (keep init strategy)`
+- **Completed:**
+  - **Step 6 is COMPLETE.**
+  - **DEBUG flag controls verbosity** - verbose logs only appear when `DEBUG=1` is set.
+  - **No new startup hooks added** - existing `ensure_db_init()` approach preserved.
+  - **Single init path maintained** - one clear source of truth for DB initialization.
+- **Test:** ✅ pokreni app i provjeri da nema "spam" logova; sidebar/resume i dalje rade kao prije.
+- **Commit:** `chore: reduce debug noise and keep single init path`
 
 ### 7) Uredi temp file handling (sigurno + cleanup)
 - **Fajlovi:** `app/ui/chat.py`
@@ -217,15 +228,15 @@ Non-goals v1:
 
 ---
 
-## Checklista: “Ready to sell”
+## Checklista: "Ready to sell"
 
 - [ ] Repo nema nikakve stvarne tajne (ni u docovima ni u primjerima).
-- [ ] `chainlit run app/ui/chat.py` radi na clean setupu (Windows) s `.env.example`.
-- [ ] Chat history + resume radi (sidebar prikazuje threadove; refresh `/thread/<id>` radi).
-- [ ] Auth je konfigurabilan i nema hardcoded kredencijala.
-- [ ] Bez `GOOGLE_API_KEY` app se i dalje koristi (jasan fallback).
-- [ ] RAG je opcionalan i ne ruši ingest/upload flow.
-- [ ] Svi podatkovni artefakti idu u `.data/` i ignorirani su.
+- [x] `chainlit run app/ui/chat.py` radi na clean setupu (Windows) s `.env.example`.
+- [x] Chat history + resume radi (sidebar prikazuje threadove; refresh `/thread/<id>` radi).
+- [x] Auth je konfigurabilan i nema hardcoded kredencijala.
+- [x] Bez `GOOGLE_API_KEY` app se i dalje koristi (jasan fallback).
+- [x] RAG je opcionalan i ne ruši ingest/upload flow.
+- [x] Svi podatkovni artefakti idu u `.data/` i ignorirani su.
 - [ ] Release ZIP radi i ne uključuje DB/Chroma/temp/tuđe PDF-ove.
 - [ ] `LICENSE-COMMERCIAL.md` + `COMMERCIAL-TERMS.md` + `THIRD_PARTY_NOTICES.md` postoje i pokrivaju distribuciju.
 - [ ] Paid v1 legal minimum docs exist (`LICENSE-COMMERCIAL.md`, `COMMERCIAL-TERMS.md`, `THIRD_PARTY_NOTICES.md`).
