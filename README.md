@@ -92,6 +92,31 @@ RAG_ENABLED=true
 GOOGLE_API_KEY=your-google-api-key  # Required for embeddings
 ```
 
+## Knowledge Base (RAG)
+
+The application includes optional Retrieval-Augmented Generation (RAG) capabilities for document search and question answering.
+
+### Adding Documents
+1. Place your documents in the `app/knowledge_base/` directory
+   - Supported formats: `.md`, `.txt`, `.pdf`
+   - The starter kit includes sample documents for reference
+
+2. Run the ingestion script to index your documents:
+   ```bash
+   python scripts/ingest.py
+   ```
+
+3. Enable RAG in your `.env` file:
+   ```env
+   RAG_ENABLED=true
+   GOOGLE_API_KEY=your-google-api-key
+   ```
+
+### Default Configuration
+- **RAG is disabled by default** (`RAG_ENABLED=false`)
+- The knowledge base contains only sample documents in the starter kit
+- Vector database files are stored in `.data/chroma_db/` (ignored by git)
+
 ## Project Structure
 
 ```
