@@ -1,3 +1,4 @@
+from app.config.settings import settings
 
 # import app.patches # Apply 500 error fix - DISABLED due to auth conflict
 import chainlit as cl
@@ -13,8 +14,9 @@ cl_data._data_layer = _dl
 setattr(cl_data, "data_layer", _dl)
 setattr(cl, "data_layer", _dl)
 
-print(f"[DB] Active data layer (cl_data._data_layer) = {type(cl_data._data_layer).__name__}")
-print(f"[DB] Active data layer (cl.data_layer)      = {type(getattr(cl, 'data_layer', None)).__name__}")
+if settings.DEBUG:
+    print(f"[DB] Active data layer (cl_data._data_layer) = {type(cl_data._data_layer).__name__}")
+    print(f"[DB] Active data layer (cl.data_layer)      = {type(getattr(cl, 'data_layer', None)).__name__}")
 
 import sys
 import os
@@ -28,12 +30,12 @@ from app.data.inventory_repo import InventoryRepository
 from app.llm.client import get_llm
 from app.rag.engine import get_rag_engine
 from chainlit.input_widget import Select, Switch, Slider
-import app.core.persistence as p
 import chainlit.data as cl_data
-from app.config import settings
+
 
 # Debug: Print resolved auth settings (no secrets)
-print(f"[AUTH] Resolved settings: AUTH_MODE={settings.AUTH_MODE} DEV_NO_AUTH={settings.DEV_NO_AUTH} ADMIN_IDENTIFIER={settings.ADMIN_IDENTIFIER}")
+if settings.DEBUG:
+    print(f"[AUTH] Resolved settings: AUTH_MODE={settings.AUTH_MODE} DEV_NO_AUTH={settings.DEV_NO_AUTH} ADMIN_IDENTIFIER={settings.ADMIN_IDENTIFIER}")
 
 # (Moved to top - hard registration)
 
@@ -43,12 +45,14 @@ async def auth_callback(username: str, password: str):
     Password authentication callback with dev/prod modes.
     No hardcoded credentials - all validation from environment variables.
     """
-    print(f"[AUTH] auth_callback called: AUTH_MODE={settings.AUTH_MODE} DEV_NO_AUTH={settings.DEV_NO_AUTH} username={username}")
+    if settings.DEBUG:
+        print(f"[AUTH] auth_callback called: AUTH_MODE={settings.AUTH_MODE} DEV_NO_AUTH={settings.DEV_NO_AUTH} username={username}")
     await ensure_db_init()
 
     # DEV no-auth bypass
     if settings.AUTH_MODE == "dev" and settings.DEV_NO_AUTH:
-        print("[AUTH] DEV_NO_AUTH enabled: authentication bypassed")
+        if settings.DEBUG:
+            print("[AUTH] DEV_NO_AUTH enabled: authentication bypassed")
         return cl.User(identifier=settings.ADMIN_IDENTIFIER, metadata={"role": "admin", "mode": "dev-no-auth"})
 
     # Prod / Dev with auth: require password configured
@@ -63,21 +67,24 @@ async def auth_callback(username: str, password: str):
     provided_pass = (password or "")
 
     # Safe debug logs (DO NOT print the password itself)
-    print(f"[AUTH][DEBUG] Expected username: {repr(expected_user)}")
-    print(f"[AUTH][DEBUG] Provided username: {repr(provided_user)}")
-    print(f"[AUTH][DEBUG] Expected password length: {len(expected_pass)}")
-    print(f"[AUTH][DEBUG] Provided password length: {len(provided_pass)}")
-    print(f"[AUTH][DEBUG] Username equality: {provided_user.lower() == expected_user.lower()}")
-    print(f"[AUTH][DEBUG] Password stripped equality: {provided_pass.strip() == expected_pass.strip()}")
+    if settings.DEBUG:
+        print(f"[AUTH][DEBUG] Expected username: {repr(expected_user)}")
+        print(f"[AUTH][DEBUG] Provided username: {repr(provided_user)}")
+        print(f"[AUTH][DEBUG] Expected password length: {len(expected_pass)}")
+        print(f"[AUTH][DEBUG] Provided password length: {len(provided_pass)}")
+        print(f"[AUTH][DEBUG] Username equality: {provided_user.lower() == expected_user.lower()}")
+        print(f"[AUTH][DEBUG] Password stripped equality: {provided_pass.strip() == expected_pass.strip()}")
 
     # Make username check case-insensitive and trimmed
     if provided_user.lower() != expected_user.lower():
-        print("[AUTH][DEBUG] Username mismatch -> refusing login")
+        if settings.DEBUG:
+            print("[AUTH][DEBUG] Username mismatch -> refusing login")
         return None
 
     # Make password check robust to whitespace/CRLF
     if not secrets.compare_digest(provided_pass.strip(), expected_pass.strip()):
-        print("[AUTH][DEBUG] Password mismatch -> refusing login")
+        if settings.DEBUG:
+            print("[AUTH][DEBUG] Password mismatch -> refusing login")
         return None
 
     # On success return
@@ -103,7 +110,6 @@ if hasattr(genai, "GenerationConfig") and not hasattr(genai.GenerationConfig, "M
 from app.core.execution import ConnectionManager
 from langchain_core.messages import HumanMessage
 
-from app.core.persistence import SQLiteDataLayer
 
 # Environment variables are loaded in app.config.settings
 
