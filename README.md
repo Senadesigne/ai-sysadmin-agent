@@ -60,15 +60,10 @@ The application will be available at `http://localhost:8000`
 
 ## Configuration Options
 
-### Development Mode
-For local development with minimal setup:
-```env
-AUTH_MODE=dev
-DEV_NO_AUTH=true
-```
+### Production vs Dev Authentication
+The application supports two authentication modes:
 
-### Production Mode
-For production deployment with full authentication:
+**Production Mode** (recommended for deployment):
 ```env
 AUTH_MODE=prod
 DEV_NO_AUTH=false
@@ -76,21 +71,38 @@ ADMIN_IDENTIFIER=your-admin-username
 ADMIN_PASSWORD=your-secure-password
 ```
 
-### Optional Features
+**Development Mode** (for local development):
+```env
+AUTH_MODE=dev
+DEV_NO_AUTH=true
+```
 
-#### Enable LLM Functionality
-Add your API key to `.env`:
+When `DEV_NO_AUTH=true`, authentication is bypassed for faster development cycles.
+
+### LLM Optional
+The application works with or without LLM integration:
+
+- **With LLM**: Add your API key to `.env` for AI-powered responses
+- **Without LLM**: Uses NullLLM fallback for basic functionality
+
 ```env
 GOOGLE_API_KEY=your-google-api-key
 # OR
 OPENAI_API_KEY=your-openai-api-key
 ```
 
-#### Enable RAG (Document Search)
+### RAG Optional
+Retrieval-Augmented Generation is disabled by default:
+
+- **Enable RAG**: Set `RAG_ENABLED=true` and provide API key for embeddings
+- **Disable RAG**: Leave `RAG_ENABLED=false` (default) for simpler setup
+
 ```env
 RAG_ENABLED=true
 GOOGLE_API_KEY=your-google-api-key  # Required for embeddings
 ```
+
+To add documents: place files in `app/knowledge_base/` and run `python scripts/ingest.py`
 
 ## Knowledge Base (RAG)
 
@@ -136,13 +148,15 @@ ai-sysadmin-agent/
 └── requirements.txt     # Python dependencies
 ```
 
-## Data Storage
+## Data Directory
+All application data is centralized in the `.data/` directory:
 
-All application data is stored in the `.data/` directory:
-- `chainlit.db` - Chat history and user sessions
-- `inventory.db` - Hardware inventory data
-- `chroma_db/` - Vector database for RAG
-- `tmp/` - Temporary file uploads
+- **Chat History**: `chainlit.db` - User sessions and conversation history
+- **Inventory**: `inventory.db` - Hardware inventory and device data  
+- **Vector DB**: `chroma_db/` - RAG embeddings and search index
+- **Temporary Files**: `tmp/` - File uploads and processing (configurable via `TMP_DIR`)
+
+The `.data/` directory is automatically created and excluded from version control.
 
 ## Security Notes
 

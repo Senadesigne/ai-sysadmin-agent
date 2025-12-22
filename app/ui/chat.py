@@ -173,7 +173,7 @@ async def on_approve(action: cl.Action):
         
         await action.remove() # Remove buttons to prevent double-click
         
-        msg = cl.Message(content=f"🚀 Izvršavam: `{command}` na `{hostname}`...")
+        msg = cl.Message(content=f"🚀 Executing: `{command}` on `{hostname}`...")
         await msg.send()
         
         # 1. Fetch Device Params from DB
@@ -181,7 +181,7 @@ async def on_approve(action: cl.Action):
         device = repo.get_device_by_hostname(hostname)
         
         if not device:
-            msg.content = f"❌ Greška: Uređaj `{hostname}` nije pronađen u inventaru."
+            msg.content = f"❌ Error: Device `{hostname}` not found in inventory."
             await msg.update()
             return
 
@@ -194,11 +194,11 @@ async def on_approve(action: cl.Action):
         # 3. Execute
         result = await conn_mgr.execute(device, command)
         
-        msg.content = f"✅ **Rezultat ({hostname}):**\n```\n{result}\n```"
+        msg.content = f"✅ **Result ({hostname}):**\n```\n{result}\n```"
         await msg.update()
         
     except Exception as e:
-        await cl.Message(content=f"❌ Greška prilikom izvršavanja callbacka: {e}").send()
+        await cl.Message(content=f"❌ Error during callback execution: {e}").send()
 
 @cl.action_callback("reject_execution")
 async def on_reject(action: cl.Action):
@@ -206,29 +206,29 @@ async def on_reject(action: cl.Action):
     Callback when user clicks '❌ ODBIJI'.
     """
     await action.remove()
-    await cl.Message(content="🚫 Akcija otkazana od strane korisnika.").send()
+    await cl.Message(content="🚫 Action cancelled by user.").send()
 
 @cl.set_starters
 async def set_starters():
     return [
         cl.Starter(
-            label="Spoji se online",
-            message="Želim se spojiti na udaljeni uređaj. (SSH Placeholder)",
+            label="Connect Online",
+            message="I want to connect to a remote device. (SSH Placeholder)",
             icon="/public/icons/terminal.svg",
             ),
         cl.Starter(
-            label="Skeniraj Mrežu",
-            message="Skeniraj mrežu za aktivne uređaje. (Nmap Placeholder)",
+            label="Scan Network",
+            message="Scan network for active devices. (Nmap Placeholder)",
             icon="/public/icons/radar.svg",
             ),
         cl.Starter(
-            label="Status Sustava",
-            message="Provjeri status servera i servisa. (Healthcheck Placeholder)",
+            label="System Status",
+            message="Check server and service status. (Healthcheck Placeholder)",
             icon="/public/icons/activity.svg",
             ),
         cl.Starter(
-            label="Analiziraj Inventar",
-            message="Koji uređaji su trenutno u bazi?",
+            label="Analyze Inventory",
+            message="Which devices are currently in the database?",
             icon="/public/icons/inventory.svg",
             ),
     ]
@@ -275,36 +275,36 @@ async def main(message: cl.Message):
         context_str = "\n\n".join(context_chunks)
 
     # --- PROMPT FOR ACTION ---
-    system_instruction = f"""Ti si AI SysAdmin Agent.
-Tvoj cilj je pomoći korisniku s održavanjem servera i mrežne opreme.
+    system_instruction = f"""You are an AI SysAdmin Agent.
+Your goal is to help the user with server and network equipment maintenance.
 
-KONTEKST ZNANJA (RAG):
+KNOWLEDGE CONTEXT (RAG):
 {context_str}
 
-**INSTRUKCIJE ZA VISION (SLIKE)**:
-Ako korisnik pošalje sliku, analiziraj je detaljno. 
-- Ako je kabel, identificiraj tip (RJ45, DB9, SFP, itd.).
-- Ako je screenshot, pročitaj tekst i objasni što se događa.
+**VISION INSTRUCTIONS (IMAGES)**:
+If the user sends an image, analyze it in detail.
+- If it's a cable, identify the type (RJ45, DB9, SFP, etc.).
+- If it's a screenshot, read the text and explain what's happening.
 
-**INSTRUKCIJE ZA IZVRŠAVANJE NAREDBI**:
-Ako korisnik zatraži akciju koja zahtijeva izvršavanje CLI naredbe na serveru (npr. 'provjeri disk', 'restartaj nginx', 'pokaži vlanove'), NE izvršavaj ju odmah.
-Umjesto toga, predloži akciju vraćanjem JSON bloka na kraju odgovora.
+**COMMAND EXECUTION INSTRUCTIONS**:
+If the user requests an action that requires executing a CLI command on a server (e.g., 'check disk', 'restart nginx', 'show vlans'), DO NOT execute it immediately.
+Instead, propose the action by returning a JSON block at the end of your response.
 
-**OBAVEZAN FORMAT ZA AKCIJE**:
-Objasni plan riječima, a zatim dodaj:
+**REQUIRED FORMAT FOR ACTIONS**:
+Explain the plan in words, then add:
 ```json
 {{
   "hostname": "TARGET_HOSTNAME_FROM_DB",
   "command": "EXACT_CLI_COMMAND",
-  "reason": "Kratko objašnjenje zašto"
+  "reason": "Brief explanation why"
 }}
 ```
 
-Pazi:
-1. `hostname` mora odgovarati hostnamu iz inventara (ako znaš, ili pretpostavi iz razgovora).
-2. `command` mora biti sigurna (nema `rm -rf` itd.).
+Note:
+1. `hostname` must match a hostname from the inventory (if you know it, or assume from conversation).
+2. `command` must be safe (no `rm -rf` etc.).
 
-DANAŠNJI ZAHTJEV: {message.content}
+TODAY'S REQUEST: {message.content}
 """
 
     try:
@@ -338,7 +338,7 @@ DANAŠNJI ZAHTJEV: {message.content}
         # Remove JSON from display text to make it cleaner
         display_text = re.sub(r"```json\s*\{.*?\}\s*```", "", content_text, flags=re.DOTALL).strip()
         if not display_text:
-            display_text = "Generirao sam prijedlog akcije (vidi dolje):"
+            display_text = "I generated an action proposal (see below):"
 
         msg = cl.Message(content=display_text)
         
@@ -350,24 +350,24 @@ DANAŠNJI ZAHTJEV: {message.content}
                     name="approve_execution", 
                     value=json.dumps(action_data), 
                     payload=action_data,
-                    label="✅ ODOBRI", 
+                    label="✅ APPROVE", 
                     description=f"Run {action_data.get('command')}"
                 ),
                 cl.Action(
                     name="reject_execution", 
                     value="cancel", 
                     payload={}, # Empty payload for reject
-                    label="❌ ODBIJI"
+                    label="❌ REJECT"
                 )
             ]
             msg.actions = actions
             # Add explicit text about the action details in the message body too
-            msg.content += f"\n\n> **Prijedlog Akcije** ⚡\n> - **Host:** `{action_data.get('hostname')}`\n> - **Naredba:** `{action_data.get('command')}`\n> - **Razlog:** {action_data.get('reason')}"
+            msg.content += f"\n\n> **Action Proposal** ⚡\n> - **Host:** `{action_data.get('hostname')}`\n> - **Command:** `{action_data.get('command')}`\n> - **Reason:** {action_data.get('reason')}"
             
         await msg.send()
 
     except Exception as e:
-        await cl.Message(content=f"Greška: {str(e)}").send()
+        await cl.Message(content=f"Error: {str(e)}").send()
 
 # Helpers
 def create_temp_file(original_filename: str) -> str:
@@ -387,7 +387,7 @@ def create_temp_file(original_filename: str) -> str:
     return str(temp_dir / unique_name)
 
 async def handle_pdf(element):
-    msg = cl.Message(content=f"⚙️ Analiziram PDF: {element.name}...")
+    msg = cl.Message(content=f"⚙️ Analyzing PDF: {element.name}...")
     await msg.send()
     temp_path = None
     try:
@@ -398,10 +398,10 @@ async def handle_pdf(element):
                 f.write(s.read())
         
         num = await cl.make_async(rag_engine.ingest_document)(temp_path)
-        msg.content = f"✅ Naučeno {num} segmenata."
+        msg.content = f"✅ Learned {num} segments."
         await msg.update()
     except Exception as e:
-        msg.content = f"❌ Greška: {e}"
+        msg.content = f"❌ Error: {e}"
         await msg.update()
     finally:
         # Always cleanup temp file if it was created
@@ -412,7 +412,7 @@ async def handle_pdf(element):
                 pass  # Ignore cleanup errors
 
 async def handle_csv(element):
-    msg = cl.Message(content=f"📊 Uvozim CSV: {element.name}...")
+    msg = cl.Message(content=f"📊 Importing CSV: {element.name}...")
     await msg.send()
     temp_path = None
     try:
@@ -424,10 +424,10 @@ async def handle_csv(element):
         
         repo = InventoryRepository()
         count = await cl.make_async(repo.bulk_import_from_csv)(temp_path)
-        msg.content = f"✅ Dodano {count} uređaja."
+        msg.content = f"✅ Added {count} devices."
         await msg.update()
     except Exception as e:
-        msg.content = f"❌ Greška: {e}"
+        msg.content = f"❌ Error: {e}"
         await msg.update()
     finally:
         # Always cleanup temp file if it was created
