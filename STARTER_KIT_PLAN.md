@@ -243,3 +243,173 @@ Non-goals v1:
 - [ ] Postoji minimalni support/upgrade policy (u TERMS).
 - [ ] All docs + user-facing messages (UI text/logs that ship) are in English.
 - [ ] Repo has basic contributing guidelines for teams (`CONTRIBUTING.md`, `CODE_STYLE.md` or equivalent).
+
+---
+
+## Production-grade extensions (2025) — Implementation Hodogram (v1.x)
+
+Goal: Add production-grade reliability patterns (no-crash, capability state, deterministic orchestration, event hooks, audit trail, decoupled RAG, clear core/add-ons boundary) without scope creep.
+
+### Global rules (apply to every step)
+- No API endpoints (/api/*) in v1.x.
+- No mock data / mock framework. OFFLINE_MODE only disables LLM+RAG+execution and shows UI status.
+- No enterprise features (SSO/RBAC/multi-tenant), no infra migrations (SQLite stays).
+- Keep changes additive, minimal; avoid refactors unless strictly necessary.
+- 1 capability = 1 commit. Each commit must include a quick manual verification.
+
+---
+
+## Commit 1 — Capability State (foundation)
+**Objective:** Central capability detection + user-visible status.
+
+**Steps**
+1.1 Add `app/core/capabilities.py`
+- Implement `CapabilityState` reading env/settings.
+- Methods: `is_llm_available()`, `is_rag_available()`, `is_persistence_available()`.
+- Add `get_status_message()` for UI (concise).
+
+1.2 Update `app/config/settings.py`
+- Add flags with defaults:
+  - `OFFLINE_MODE=false`
+  - `ENABLE_EVENTS=true`
+  - `ENABLE_AUDIT=true`
+  - `EXECUTION_ENABLED=false`
+
+1.3 Update `app/ui/chat.py`
+- Initialize `CapabilityState` at chat start.
+- Display a one-time status message (e.g. "✓ Chat | ✗ LLM | ✗ RAG").
+
+**Verify**
+- Run without API key → app runs; status shows LLM disabled.
+- Run with `OFFLINE_MODE=true` → status shows offline mode / external disabled.
+
+---
+
+## Commit 2 — Event hooks (foundation only)
+**Objective:** Emit events without integrating external platforms.
+
+**Steps**
+2.1 Add `app/core/events.py`
+- `EventEmitter.emit(event_type, data)`
+- `JSONLEventLogger` writes to `.data/events.jsonl` (append-only).
+- Ensure `.data/` folder exists (create if missing).
+
+2.2 Add minimal wiring (no wide integration yet)
+- Initialize default logger once on app start (or lazy init on first emit).
+
+**Verify**
+- Emit a test event during chat start → confirm `.data/events.jsonl` gets one JSON line.
+
+---
+
+## Commit 3 — No-crash LLM boundary
+**Objective:** LLM failures never crash; always safe fallback.
+
+**Steps**
+3.1 Update `app/llm/client.py`
+- If `OFFLINE_MODE=true` → return `NullLLM` + status message.
+- Wrap provider init in try/except → fallback to `NullLLM`.
+- Emit event on fallback (if events enabled).
+
+3.2 Ensure user-visible clarity
+- If NullLLM active, UI should clearly indicate LLM unavailable.
+
+**Verify**
+- Break API key → app still runs; you get fallback message; no crash.
+
+---
+
+## Commit 4 — No-crash + decoupled RAG boundary
+**Objective:** RAG failures never crash; RAG can be disabled cleanly.
+
+**Steps**
+4.1 Update `app/rag/engine.py`
+- If `OFFLINE_MODE=true` → `NullRagEngine` (returns empty results).
+- `query()` wrapped in try/except → returns `[]` on error.
+- `ingest_*` wrapped in try/except → returns `0` on error.
+- Emit `rag_query` / `rag_fallback` events (if enabled).
+
+4.2 Ensure agent messaging
+- When RAG unavailable, agent says: "Knowledge base is currently unavailable" (or similar).
+
+**Verify**
+- Set `RAG_ENABLED=true` but break RAG deps → chat still works; RAG returns empty; message shown; no crash.
+
+---
+
+## Commit 5 — Deterministic orchestration (plan → execute)
+**Objective:** Always create a JSON plan before any tool/execution.
+
+**Steps**
+5.1 Add `app/core/orchestrator.py`
+- `create_plan(user_input)` → returns structured JSON plan (max 10 steps).
+- `execute_plan(plan)` → executes only if execution enabled (otherwise no-op).
+
+5.2 Update `app/ui/chat.py`
+- On each message: generate plan first and display it.
+- If execution disabled: show "Execution disabled" and stop after plan.
+
+**Verify**
+- Prompt: "restart nginx on server1" → plan displayed.
+- With `EXECUTION_ENABLED=false` → no execution occurs.
+
+---
+
+## Commit 6 — Audit trail (approvals only)
+**Objective:** Append-only audit for approve/reject and critical actions.
+
+**Steps**
+6.1 Add `app/core/audit.py`
+- `log_audit(user, action, params, outcome)` → append JSON to `.data/audit.jsonl`.
+- Audit must never crash app (try/except inside).
+
+6.2 Wire into approve/reject flow in `app/ui/chat.py`
+- On approve: write audit entry.
+- On reject: write audit entry.
+
+**Verify**
+- Approve and reject once → `.data/audit.jsonl` contains both entries.
+
+---
+
+## Commit 7 — Wire key event emissions (minimal)
+**Objective:** Ensure events are emitted at important points.
+
+**Steps**
+7.1 Add emits (guarded by `ENABLE_EVENTS`)
+- LLM call start/end or fallback
+- RAG query/fallback
+- plan created
+- approval requested
+- execution requested (if module exists)
+
+**Verify**
+- `.data/events.jsonl` includes events for a typical chat flow.
+
+---
+
+## Commit 8 — Persistence failure boundaries (no-persistence mode)
+**Objective:** If persistence fails (locked/corrupt), app still runs with a warning.
+
+**Steps**
+8.1 Update `app/ui/db.py`
+- `ensure_db_init()` returns True/False; never crashes.
+
+8.2 Update `app/ui/data_layer.py`
+- Only in `__init__`: try DB init; on fail set `self.enabled=False` and emit `persistence_failed`.
+- For other methods: if `not self.enabled` return safe defaults (minimal), but do not swallow unexpected errors silently.
+
+8.3 Update `app/ui/chat.py`
+- On chat start: if persistence init fails → show sticky warning: "Chat history unavailable - running in temporary mode".
+
+**Verify**
+- Simulate locked/corrupt DB on startup → app runs; warning shown; no crash.
+
+---
+
+### Done criteria (v1.x)
+- App never crashes due to missing keys, disabled RAG, or persistence init failure.
+- Status clearly shows what is enabled/disabled.
+- Plan is shown before any execution.
+- Events + audit logs work (append-only JSONL).
+- Core works without execution module.
