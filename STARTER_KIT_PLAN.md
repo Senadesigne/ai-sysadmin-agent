@@ -413,3 +413,14 @@ Goal: Add production-grade reliability patterns (no-crash, capability state, det
 - Plan is shown before any execution.
 - Events + audit logs work (append-only JSONL).
 - Core works without execution module.
+
+### Optional premium upgrades (later)
+
+- **Contract / smoke test matrix**
+  - Proširiti `scripts/verify_startup.py` da pokriva ključne scenarije (no keys, OFFLINE_MODE, RAG disabled, persistence init fail/locked/corrupt) i daje jasne PASS/FAIL poruke.
+
+- **Error taxonomy**
+  - Uvesti standardne tipove grešaka (npr. `LLMUnavailable`, `RAGUnavailable`, `PersistenceUnavailable`) kako bi fallback poruke i eventovi bili dosljedni.
+
+- **Structured logging**
+  - Standardizirati format logova (npr. JSONL ili barem konzistentan prefix + correlation id) radi lakšeg debugiranja i buduće observability integracije.
