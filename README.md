@@ -86,9 +86,9 @@ The application works with or without LLM integration:
 - **Without LLM**: Uses NullLLM fallback for basic functionality
 
 ```env
-GOOGLE_API_KEY=your-google-api-key
+GOOGLE_API_KEY=YOUR_GOOGLE_API_KEY
 # OR
-OPENAI_API_KEY=your-openai-api-key
+OPENAI_API_KEY=YOUR_OPENAI_API_KEY
 ```
 
 ### RAG Optional
@@ -99,7 +99,7 @@ Retrieval-Augmented Generation is disabled by default:
 
 ```env
 RAG_ENABLED=true
-GOOGLE_API_KEY=your-google-api-key  # Required for embeddings
+GOOGLE_API_KEY=YOUR_GOOGLE_API_KEY  # Required for embeddings
 ```
 
 To add documents: place files in `app/knowledge_base/` and run `python scripts/ingest.py`
@@ -121,7 +121,7 @@ The application includes optional Retrieval-Augmented Generation (RAG) capabilit
 3. Enable RAG in your `.env` file:
    ```env
    RAG_ENABLED=true
-   GOOGLE_API_KEY=your-google-api-key
+   GOOGLE_API_KEY=YOUR_GOOGLE_API_KEY
    ```
 
 ### Default Configuration
@@ -181,6 +181,21 @@ The `.data/` directory is automatically created and excluded from version contro
 1. Verify your API key is set in `.env`
 2. Check your API quota and billing status
 3. The application will work without API keys (with limited functionality)
+
+## Build Release ZIP
+
+To create a distribution-ready release package:
+
+```bash
+python scripts/build_release_zip.py
+```
+
+This creates a clean ZIP file in the `dist/` directory containing only the essential files needed for deployment. The script automatically excludes databases, cache files, and temporary data while including all necessary source code and documentation.
+
+Optional: specify a different output directory:
+```bash
+python scripts/build_release_zip.py --out releases/
+```
 
 ## License
 

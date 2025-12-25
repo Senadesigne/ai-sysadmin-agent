@@ -230,7 +230,7 @@ Non-goals v1:
 
 ## Checklista: "Ready to sell"
 
-- [ ] Repo nema nikakve stvarne tajne (ni u docovima ni u primjerima).
+- [x] Repo nema nikakve stvarne tajne (ni u docovima ni u primjerima).
 - [x] `chainlit run app/ui/chat.py` radi na clean setupu (Windows) s `.env.example`.
 - [x] Chat history + resume radi (sidebar prikazuje threadove; refresh `/thread/<id>` radi).
 - [x] Auth je konfigurabilan i nema hardcoded kredencijala.
@@ -238,11 +238,11 @@ Non-goals v1:
 - [x] RAG je opcionalan i ne ruši ingest/upload flow.
 - [x] Svi podatkovni artefakti idu u `.data/` i ignorirani su.
 - [ ] Release ZIP radi i ne uključuje DB/Chroma/temp/tuđe PDF-ove.
-- [ ] `LICENSE-COMMERCIAL.md` + `COMMERCIAL-TERMS.md` + `THIRD_PARTY_NOTICES.md` postoje i pokrivaju distribuciju.
-- [ ] Paid v1 legal minimum docs exist (`LICENSE-COMMERCIAL.md`, `COMMERCIAL-TERMS.md`, `THIRD_PARTY_NOTICES.md`).
-- [ ] Postoji minimalni support/upgrade policy (u TERMS).
-- [ ] All docs + user-facing messages (UI text/logs that ship) are in English.
-- [ ] Repo has basic contributing guidelines for teams (`CONTRIBUTING.md`, `CODE_STYLE.md` or equivalent).
+- [x] `LICENSE-COMMERCIAL.md` + `COMMERCIAL-TERMS.md` + `THIRD_PARTY_NOTICES.md` postoje i pokrivaju distribuciju.
+- [x] Paid v1 legal minimum docs exist (`LICENSE-COMMERCIAL.md`, `COMMERCIAL-TERMS.md`, `THIRD_PARTY_NOTICES.md`).
+- [x] Postoji minimalni support/upgrade policy (u TERMS).
+- [x] All docs + user-facing messages (UI text/logs that ship) are in English.
+- [x] Repo has basic contributing guidelines for teams (`CONTRIBUTING.md`, `CODE_STYLE.md` or equivalent).
 
 ---
 
