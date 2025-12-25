@@ -33,6 +33,12 @@ RAG_ENABLED = os.getenv("RAG_ENABLED", "false").lower() in ("1", "true", "yes")
 # Debug configuration
 DEBUG = os.getenv("DEBUG", "false").lower() in ("1", "true", "yes")
 
+# Production-grade capability flags
+OFFLINE_MODE = os.getenv("OFFLINE_MODE", "false").lower() in ("1", "true", "yes")
+ENABLE_EVENTS = os.getenv("ENABLE_EVENTS", "true").lower() in ("1", "true", "yes")
+ENABLE_AUDIT = os.getenv("ENABLE_AUDIT", "true").lower() in ("1", "true", "yes")
+EXECUTION_ENABLED = os.getenv("EXECUTION_ENABLED", "false").lower() in ("1", "true", "yes")
+
 
 def ensure_data_dirs() -> None:
     """Ensure all product data directories exist."""

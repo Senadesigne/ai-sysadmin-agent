@@ -27,7 +27,6 @@ from app.data.inventory_repo import InventoryRepository
 from app.llm.client import get_llm
 from app.rag.engine import RagEngine
 from chainlit.input_widget import Select, Switch, Slider
-import app.core.persistence as p
 import chainlit.data as cl_data
 
 # (Moved to top - hard registration)
@@ -73,7 +72,6 @@ if hasattr(genai, "GenerationConfig") and not hasattr(genai.GenerationConfig, "M
 from app.core.execution import ConnectionManager
 from langchain_core.messages import HumanMessage
 
-from app.core.persistence import SQLiteDataLayer
 
 # Load env vars (specifically SSH_KEY_PATH)
 load_dotenv()
@@ -199,7 +197,13 @@ async def set_starters():
 async def start():
     repo = InventoryRepository()
     repo.initialize_db()
-    # Clean start - no welcome message
+    
+    # Show capability status message
+    from app.core.capabilities import CapabilityState
+    capability_state = CapabilityState()
+    status_message = capability_state.get_status_message()
+    
+    await cl.Message(content=f"🤖 **AI SysAdmin Agent Ready**\n\n{status_message}").send()
 
 @cl.on_message
 async def main(message: cl.Message):
