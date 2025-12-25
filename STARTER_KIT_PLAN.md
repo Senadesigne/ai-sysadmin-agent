@@ -237,7 +237,7 @@ Non-goals v1:
 - [x] Bez `GOOGLE_API_KEY` app se i dalje koristi (jasan fallback).
 - [x] RAG je opcionalan i ne ruši ingest/upload flow.
 - [x] Svi podatkovni artefakti idu u `.data/` i ignorirani su.
-- [ ] Release ZIP radi i ne uključuje DB/Chroma/temp/tuđe PDF-ove.
+- [x] Release ZIP radi i ne uključuje DB/Chroma/temp/tuđe PDF-ove.
 - [x] `LICENSE-COMMERCIAL.md` + `COMMERCIAL-TERMS.md` + `THIRD_PARTY_NOTICES.md` postoje i pokrivaju distribuciju.
 - [x] Paid v1 legal minimum docs exist (`LICENSE-COMMERCIAL.md`, `COMMERCIAL-TERMS.md`, `THIRD_PARTY_NOTICES.md`).
 - [x] Postoji minimalni support/upgrade policy (u TERMS).
