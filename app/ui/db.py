@@ -1,24 +1,28 @@
 import aiosqlite
+import logging
 import asyncio
-from app.config import settings
+from pathlib import Path
 
-DB_PATH = settings.CHAINLIT_DB_PATH
-# Backward-compatible alias (some modules still import DB_NAME)
-DB_NAME = str(DB_PATH)
+# DB path stabilizacija - apsolutni path u root projekta
+# db.py je u app/ui/, pa trebamo ići 2 razine gore do root-a
+ROOT_DIR = Path(__file__).resolve().parents[2]
+DB_NAME = str(ROOT_DIR / "chainlit.db")
 
+# Debug print - prikaži gdje je DB
+print(f"[DB] DB path: {DB_NAME}")
+
+# Jednokratna inicijalizacija
 _db_initialized = False
 _db_init_lock = asyncio.Lock()
 
 async def init_db():
     """Initialize SQLite database with required tables for Chainlit persistence."""
-    settings.ensure_data_dirs()
     print(f"[starter-kit] Using Chainlit DB at: {DB_PATH}")
-
-    async with aiosqlite.connect(str(DB_PATH)) as db:
+    async with aiosqlite.connect(DB_NAME) as db:
         # Omogući Foreign Keys
         await db.execute("PRAGMA foreign_keys = ON;")
 
-        # Kreiranje tablice users
+        # Create users table
         await db.execute("""
             CREATE TABLE IF NOT EXISTS users (
                 id TEXT PRIMARY KEY,
@@ -28,7 +32,7 @@ async def init_db():
             )
         """)
         
-        # Kreiranje tablice threads
+        # Create threads table
         await db.execute("""
             CREATE TABLE IF NOT EXISTS threads (
                 id TEXT PRIMARY KEY,
@@ -42,7 +46,7 @@ async def init_db():
             )
         """)
         
-        # Kreiranje tablice steps
+        # Create steps table
         await db.execute("""
             CREATE TABLE IF NOT EXISTS steps (
                 id TEXT PRIMARY KEY,
@@ -70,7 +74,7 @@ async def init_db():
             )
         """)
         
-        # Kreiranje tablice elements
+        # Create elements table
         await db.execute("""
             CREATE TABLE IF NOT EXISTS elements (
                 id TEXT PRIMARY KEY,
@@ -91,7 +95,7 @@ async def init_db():
             )
         """)
         
-        # Kreiranje tablice feedbacks
+        # Create feedbacks table
         await db.execute("""
             CREATE TABLE IF NOT EXISTS feedbacks (
                 id TEXT PRIMARY KEY,
@@ -113,10 +117,12 @@ async def init_db():
             ) 
             WHERE (userIdentifier IS NULL OR userIdentifier = 'system') AND userId IS NOT NULL
         """)
-        if settings.DEBUG:
-            print(f"[DB] Migration updated {cursor.rowcount} threads with userIdentifier")
+        migrated_count = cursor.rowcount
+        if migrated_count > 0:
+            print(f"[DB] Migrated {migrated_count} threads with userIdentifier (including system -> proper identifier)")
         
         await db.commit()
+        print("[DB] init_db complete (tables ensured: users, threads, steps, elements, feedbacks)")
 
 async def ensure_db_init() -> None:
     global _db_initialized

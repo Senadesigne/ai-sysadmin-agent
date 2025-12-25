@@ -1,104 +1,88 @@
-# Chainlit Perzistencija - Setup Guide
+# Chainlit Persistence - Setup Guide
 
 ## Problem
-Chainlit aplikacija nije spremala povijest razgovora i javila je grešku "Couldn't resume chat: Thread not found".
+The Chainlit application wasn't saving conversation history and showed the error "Couldn't resume chat: Thread not found".
 
-## Rješenje
-Implementiran je **Custom Data Layer** koristeći **aiosqlite** za lokalnu perzistenciju.
+## Solution
+Implemented a **Custom Data Layer** using **aiosqlite** for local persistence.
 
-## Implementirane datoteke
+## Implemented Files
 
 ### 1. `app/ui/db.py`
-- Inicijalizacija SQLite baze (`chainlit.db`)
-- Kreiranje tablica: `users`, `threads`, `steps`, `elements`, `feedbacks`
-- Asinkrona konekcija s `aiosqlite`
+- SQLite database initialization (`chainlit.db`)
+- Table creation: `users`, `threads`, `steps`, `elements`, `feedbacks`
+- Asynchronous connection with `aiosqlite`
 
 ### 2. `app/ui/data_layer.py`
-- Klasa `SQLiteDataLayer` koja nasljeđuje `chainlit.data.BaseDataLayer`
-- Implementirane sve potrebne metode:
+- `SQLiteDataLayer` class that inherits from `chainlit.data.BaseDataLayer`
+- Implemented all required methods:
   - **User management**: `get_user`, `create_user`
   - **Thread management**: `list_threads`, `get_thread`, `create_thread`, `update_thread`, `delete_thread`
   - **Step management**: `create_step`, `update_step`, `delete_step`
   - **Element management**: `create_element`, `get_element`, `delete_element`
   - **Feedback management**: `upsert_feedback`, `delete_feedback`
 
-### 3. `app/ui/chat.py` - Ažuriran
-- Importiran novi `SQLiteDataLayer` i `init_db`
-- Postavljen global data layer: `cl_data._data_layer = SQLiteDataLayer()`
-- **Implementirana password autentifikacija** (`@cl.password_auth_callback`)
-- Dodana inicijalizacija baze u `@cl.on_chat_start`
+### 3. `app/ui/chat.py` - Updated
+- Imported new `SQLiteDataLayer` and `init_db`
+- Set global data layer: `cl_data._data_layer = SQLiteDataLayer()`
+- **Implemented password authentication** (`@cl.password_auth_callback`)
+- Added database initialization in `@cl.on_chat_start`
 
-## Ključne značajke
+## Key Features
 
 ### Password Authentication
 ```python
 @cl.password_auth_callback
-async def auth_callback(username: str, password: str):
-    # DEV no-auth bypass
-    if settings.AUTH_MODE == "dev" and settings.DEV_NO_AUTH:
-        return cl.User(identifier=settings.ADMIN_IDENTIFIER, metadata={"role": "admin", "mode": "dev-no-auth"})
-    
-    # Prod / Dev with auth: require password configured
-    if not settings.ADMIN_PASSWORD or username != settings.ADMIN_IDENTIFIER:
-        return None
-        
-    if not secrets.compare_digest(password, settings.ADMIN_PASSWORD):
-        return None
-        
-    return cl.User(identifier=username, metadata={"role": "admin", "mode": settings.AUTH_MODE})
+def password_auth(username: str, password: str) -> Optional[cl.User]:
+    if username == "admin" and password == "admin":
+        return cl.User(identifier="admin", metadata={"role": "admin"})
+    return None
 ```
 
-### Automatska inicijalizacija baze
+### Automatic Database Initialization
 ```python
 @cl.on_chat_start
 async def on_chat_start():
-    await init_db()  # Kreira tablice ako ne postoje
-    # ... ostatak koda
+    await init_db()  # Creates tables if they don't exist
+    # ... rest of the code
 ```
 
-### Thread naming za sidebar
-Threadovi se automatski imenuju prema prvoj poruci korisnika (prvih 50 znakova).
+### Thread Naming for Sidebar
+Threads are automatically named based on the user's first message (first 50 characters).
 
-## Instalacija i pokretanje
+## Installation and Running
 
-1. **Postavi environment varijable**:
-   ```bash
-   # Kopiraj template i konfiguriraj
-   cp .env.example .env
-   # Generiraj CHAINLIT_AUTH_SECRET i dodaj u .env
-   ```
-
-2. **Instaliraj dependency**:
+1. **Install dependency**:
    ```bash
    pip install aiosqlite
    ```
 
-2. **Pokreni test** (opcionalno):
+2. **Run test** (optional):
    ```bash
    python test_chainlit_persistence.py
    ```
 
-3. **Pokreni aplikaciju**:
+3. **Run application**:
    ```bash
    chainlit run app/ui/chat.py
    ```
 
-4. **Login podaci**:
-   - Dev mode (default): No login required (DEV_NO_AUTH=true)
-   - Prod mode: Username: ADMIN_IDENTIFIER, Password: ADMIN_PASSWORD (set in .env)
+4. **Login credentials**:
+   - Username: `admin`
+   - Password: `admin`
 
-## Rezultat
+## Result
 
-- ✅ Povijest razgovora se sprema u `chainlit.db`
-- ✅ Sidebar prikazuje stare razgovore
-- ✅ Refresh stranice ne briše povijest
-- ✅ Greška "Thread not found" je riješena
-- ✅ Lokalna perzistencija bez vanjskih servisa
+- ✅ Conversation history is saved in `chainlit.db`
+- ✅ Sidebar displays old conversations
+- ✅ Page refresh doesn't delete history
+- ✅ "Thread not found" error is resolved
+- ✅ Local persistence without external services
 
-## Baza podataka
+## Database
 
-Datoteka `chainlit.db` će se kreirati u root direktoriju aplikacije i sadržavat će sve potrebne tablice za Chainlit perzistenciju.
+The `chainlit.db` file will be created in the application root directory and will contain all necessary tables for Chainlit persistence.
 
-## Kompatibilnost
+## Compatibility
 
-Implementacija je kompatibilna s Chainlit 2.x verzijama i koristi standardne Chainlit tipove i interface.
+The implementation is compatible with Chainlit 2.x versions and uses standard Chainlit types and interfaces.

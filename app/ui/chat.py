@@ -1,11 +1,8 @@
-from app.config import settings
 
 # import app.patches # Apply 500 error fix - DISABLED due to auth conflict
 import chainlit as cl
 import chainlit.data as cl_data
 from app.ui.data_layer import SQLiteDataLayer
-from app.ui.db import ensure_db_init
-import secrets
 
 _dl = SQLiteDataLayer()
 
@@ -14,84 +11,47 @@ cl_data._data_layer = _dl
 setattr(cl_data, "data_layer", _dl)
 setattr(cl, "data_layer", _dl)
 
-if settings.DEBUG:
-    print(f"[DB] Active data layer (cl_data._data_layer) = {type(cl_data._data_layer).__name__}")
-    print(f"[DB] Active data layer (cl.data_layer)      = {type(getattr(cl, 'data_layer', None)).__name__}")
+print(f"[DB] Active data layer (cl_data._data_layer) = {type(cl_data._data_layer).__name__}")
+print(f"[DB] Active data layer (cl.data_layer)      = {type(getattr(cl, 'data_layer', None)).__name__}")
 
 import sys
 import os
 import json
 import re
-import tempfile
-import uuid
-from pathlib import Path
+from dotenv import load_dotenv
 
 # Ensure the root directory is in sys.path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 
 from app.data.inventory_repo import InventoryRepository
 from app.llm.client import get_llm
-from app.rag.engine import get_rag_engine
+from app.rag.engine import RagEngine
 from chainlit.input_widget import Select, Switch, Slider
+import app.core.persistence as p
 import chainlit.data as cl_data
-
-
-# Debug: Print resolved auth settings (no secrets)
-if settings.DEBUG:
-    print(f"[AUTH] Resolved settings: AUTH_MODE={settings.AUTH_MODE} DEV_NO_AUTH={settings.DEV_NO_AUTH} ADMIN_IDENTIFIER={settings.ADMIN_IDENTIFIER}")
 
 # (Moved to top - hard registration)
 
 @cl.password_auth_callback
-async def auth_callback(username: str, password: str):
+def auth(username: str, password: str):
     """
-    Password authentication callback with dev/prod modes.
-    No hardcoded credentials - all validation from environment variables.
+    Password authentication callback for development.
+    Accepts hardcoded credentials: admin/admin
     """
-    if settings.DEBUG:
-        print(f"[AUTH] auth_callback called: AUTH_MODE={settings.AUTH_MODE} DEV_NO_AUTH={settings.DEV_NO_AUTH} username={username}")
-    await ensure_db_init()
-
-    # DEV no-auth bypass
-    if settings.AUTH_MODE == "dev" and settings.DEV_NO_AUTH:
-        if settings.DEBUG:
-            print("[AUTH] DEV_NO_AUTH enabled: authentication bypassed")
-        return cl.User(identifier=settings.ADMIN_IDENTIFIER, metadata={"role": "admin", "mode": "dev-no-auth"})
-
-    # Prod / Dev with auth: require password configured
-    if not settings.ADMIN_PASSWORD:
-        print("[AUTH] ADMIN_PASSWORD is missing; refusing login.")
-        return None
-
-    # Normalize inputs
-    expected_user = (settings.ADMIN_IDENTIFIER or "").strip()
-    expected_pass = (settings.ADMIN_PASSWORD or "")
-    provided_user = (username or "").strip()
-    provided_pass = (password or "")
-
-    # Safe debug logs (DO NOT print the password itself)
-    if settings.DEBUG:
-        print(f"[AUTH][DEBUG] Expected username: {repr(expected_user)}")
-        print(f"[AUTH][DEBUG] Provided username: {repr(provided_user)}")
-        print(f"[AUTH][DEBUG] Expected password length: {len(expected_pass)}")
-        print(f"[AUTH][DEBUG] Provided password length: {len(provided_pass)}")
-        print(f"[AUTH][DEBUG] Username equality: {provided_user.lower() == expected_user.lower()}")
-        print(f"[AUTH][DEBUG] Password stripped equality: {provided_pass.strip() == expected_pass.strip()}")
-
-    # Make username check case-insensitive and trimmed
-    if provided_user.lower() != expected_user.lower():
-        if settings.DEBUG:
-            print("[AUTH][DEBUG] Username mismatch -> refusing login")
-        return None
-
-    # Make password check robust to whitespace/CRLF
-    if not secrets.compare_digest(provided_pass.strip(), expected_pass.strip()):
-        if settings.DEBUG:
-            print("[AUTH][DEBUG] Password mismatch -> refusing login")
-        return None
-
-    # On success return
-    return cl.User(identifier=expected_user, metadata={"role": "admin", "mode": settings.AUTH_MODE})
+    print(f"[AUTH] Login attempt: username={username}")
+    
+    # Dev credentials
+    if username == "admin" and password == "admin":
+        user_identifier = "antigravity_dev_user"
+        print(f"[AUTH] Login success user={username}")
+        print(f"[AUTH] success identifier={user_identifier}")
+        return cl.User(
+            identifier=user_identifier, 
+            metadata={"role": "admin", "username": username}
+        )
+    
+    print(f"[AUTH] Login failed for user={username}")
+    return None
 
 # Disable header auth to force password auth
 # @cl.header_auth_callback
@@ -113,8 +73,10 @@ if hasattr(genai, "GenerationConfig") and not hasattr(genai.GenerationConfig, "M
 from app.core.execution import ConnectionManager
 from langchain_core.messages import HumanMessage
 
+from app.core.persistence import SQLiteDataLayer
 
-# Environment variables are loaded in app.config.settings
+# Load env vars (specifically SSH_KEY_PATH)
+load_dotenv()
 
 # Auth startup log
 auth_secret = os.getenv("CHAINLIT_AUTH_SECRET")
@@ -123,7 +85,7 @@ if auth_secret:
 else:
     print("[AUTH] WARNING: CHAINLIT_AUTH_SECRET not found in .env")
 
-rag_engine = get_rag_engine()
+rag_engine = RagEngine()
 
 # --- PERSISTENCE SETUP ---
 # (Data layer already registered at top)
@@ -194,11 +156,11 @@ async def on_approve(action: cl.Action):
         # 3. Execute
         result = await conn_mgr.execute(device, command)
         
-        msg.content = f"✅ **Result ({hostname}):**\n```\n{result}\n```"
+        msg.content = f"✅ **Rezultat ({hostname}):**\n```\n{result}\n```"
         await msg.update()
         
     except Exception as e:
-        await cl.Message(content=f"❌ Error during callback execution: {e}").send()
+        await cl.Message(content=f"❌ Error executing callback: {e}").send()
 
 @cl.action_callback("reject_execution")
 async def on_reject(action: cl.Action):
@@ -222,20 +184,19 @@ async def set_starters():
             icon="/public/icons/radar.svg",
             ),
         cl.Starter(
-            label="System Status",
-            message="Check server and service status. (Healthcheck Placeholder)",
+            label="Status Sustava",
+            message="Provjeri status servera i servisa. (Healthcheck Placeholder)",
             icon="/public/icons/activity.svg",
             ),
         cl.Starter(
             label="Analyze Inventory",
-            message="Which devices are currently in the database?",
+            message="What devices are currently in the database?",
             icon="/public/icons/inventory.svg",
             ),
     ]
 
 @cl.on_chat_start
 async def start():
-    await ensure_db_init()
     repo = InventoryRepository()
     repo.initialize_db()
     # Clean start - no welcome message
@@ -275,23 +236,23 @@ async def main(message: cl.Message):
         context_str = "\n\n".join(context_chunks)
 
     # --- PROMPT FOR ACTION ---
-    system_instruction = f"""You are an AI SysAdmin Agent.
-Your goal is to help the user with server and network equipment maintenance.
+    system_instruction = f"""Ti si AI SysAdmin Agent.
+Tvoj cilj je pomoći korisniku s održavanjem servera i mrežne opreme.
 
-KNOWLEDGE CONTEXT (RAG):
+KONTEKST ZNANJA (RAG):
 {context_str}
 
-**VISION INSTRUCTIONS (IMAGES)**:
-If the user sends an image, analyze it in detail.
-- If it's a cable, identify the type (RJ45, DB9, SFP, etc.).
-- If it's a screenshot, read the text and explain what's happening.
+**INSTRUKCIJE ZA VISION (SLIKE)**:
+Ako korisnik pošalje sliku, analiziraj je detaljno. 
+- Ako je kabel, identificiraj tip (RJ45, DB9, SFP, itd.).
+- Ako je screenshot, pročitaj tekst i objasni što se događa.
 
-**COMMAND EXECUTION INSTRUCTIONS**:
-If the user requests an action that requires executing a CLI command on a server (e.g., 'check disk', 'restart nginx', 'show vlans'), DO NOT execute it immediately.
-Instead, propose the action by returning a JSON block at the end of your response.
+**INSTRUKCIJE ZA IZVRŠAVANJE NAREDBI**:
+Ako korisnik zatraži akciju koja zahtijeva izvršavanje CLI naredbe na serveru (npr. 'provjeri disk', 'restartaj nginx', 'pokaži vlanove'), NE izvršavaj ju odmah.
+Umjesto toga, predloži akciju vraćanjem JSON bloka na kraju odgovora.
 
-**REQUIRED FORMAT FOR ACTIONS**:
-Explain the plan in words, then add:
+**OBAVEZAN FORMAT ZA AKCIJE**:
+Objasni plan riječima, a zatim dodaj:
 ```json
 {{
   "hostname": "TARGET_HOSTNAME_FROM_DB",
@@ -300,11 +261,11 @@ Explain the plan in words, then add:
 }}
 ```
 
-Note:
-1. `hostname` must match a hostname from the inventory (if you know it, or assume from conversation).
-2. `command` must be safe (no `rm -rf` etc.).
+Pazi:
+1. `hostname` mora odgovarati hostnamu iz inventara (ako znaš, ili pretpostavi iz razgovora).
+2. `command` mora biti sigurna (nema `rm -rf` itd.).
 
-TODAY'S REQUEST: {message.content}
+DANAŠNJI ZAHTJEV: {message.content}
 """
 
     try:
@@ -350,14 +311,14 @@ TODAY'S REQUEST: {message.content}
                     name="approve_execution", 
                     value=json.dumps(action_data), 
                     payload=action_data,
-                    label="✅ APPROVE", 
+                    label="✅ ODOBRI", 
                     description=f"Run {action_data.get('command')}"
                 ),
                 cl.Action(
                     name="reject_execution", 
                     value="cancel", 
                     payload={}, # Empty payload for reject
-                    label="❌ REJECT"
+                    label="❌ ODBIJI"
                 )
             ]
             msg.actions = actions
@@ -370,58 +331,27 @@ TODAY'S REQUEST: {message.content}
         await cl.Message(content=f"Error: {str(e)}").send()
 
 # Helpers
-def create_temp_file(original_filename: str) -> str:
-    """
-    Create a safe temporary file path with unique name.
-    Uses .data/tmp/ directory and ensures it exists.
-    Returns the full path to the temporary file.
-    """
-    # Create .data/tmp directory if it doesn't exist
-    temp_dir = Path(".data/tmp")
-    temp_dir.mkdir(parents=True, exist_ok=True)
-    
-    # Generate unique filename to avoid collisions
-    file_ext = Path(original_filename).suffix
-    unique_name = f"{uuid.uuid4().hex}_{Path(original_filename).stem}{file_ext}"
-    
-    return str(temp_dir / unique_name)
-
 async def handle_pdf(element):
-    msg = cl.Message(content=f"⚙️ Analyzing PDF: {element.name}...")
+    msg = cl.Message(content=f"⚙️ Analiziram PDF: {element.name}...")
     await msg.send()
-    temp_path = None
     try:
-        # Create safe temporary file
-        temp_path = create_temp_file(element.name)
+        temp_path = f"temp_{element.name}"
         with open(temp_path, "wb") as f:
-            with open(element.path, "rb") as s: 
-                f.write(s.read())
-        
+            with open(element.path, "rb") as s: f.write(s.read())
         num = await cl.make_async(rag_engine.ingest_document)(temp_path)
         msg.content = f"✅ Learned {num} segments."
         await msg.update()
     except Exception as e:
         msg.content = f"❌ Error: {e}"
         await msg.update()
-    finally:
-        # Always cleanup temp file if it was created
-        if temp_path and os.path.exists(temp_path):
-            try:
-                os.remove(temp_path)
-            except Exception:
-                pass  # Ignore cleanup errors
 
 async def handle_csv(element):
     msg = cl.Message(content=f"📊 Importing CSV: {element.name}...")
     await msg.send()
-    temp_path = None
     try:
-        # Create safe temporary file
-        temp_path = create_temp_file(element.name)
+        temp_path = f"temp_{element.name}"
         with open(temp_path, "wb") as f:
-            with open(element.path, "rb") as s: 
-                f.write(s.read())
-        
+            with open(element.path, "rb") as s: f.write(s.read())
         repo = InventoryRepository()
         count = await cl.make_async(repo.bulk_import_from_csv)(temp_path)
         msg.content = f"✅ Added {count} devices."
@@ -429,10 +359,3 @@ async def handle_csv(element):
     except Exception as e:
         msg.content = f"❌ Error: {e}"
         await msg.update()
-    finally:
-        # Always cleanup temp file if it was created
-        if temp_path and os.path.exists(temp_path):
-            try:
-                os.remove(temp_path)
-            except Exception:
-                pass  # Ignore cleanup errors
