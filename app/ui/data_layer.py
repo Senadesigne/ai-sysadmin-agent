@@ -1,5 +1,6 @@
 import json
 import uuid
+import asyncio
 import aiosqlite
 from datetime import datetime
 from typing import Optional, List, Dict, Any
@@ -282,11 +283,18 @@ class SQLiteDataLayer(BaseDataLayer):
         print(f"[DB] ENTER create_step threadId={val_thread}, type={val_type}, name={val_name}")
         
         async with aiosqlite.connect(self.db_path) as db:
-            # Check if thread exists - deterministic check only
-            cursor = await db.execute("SELECT 1 FROM threads WHERE id = ?", (val_thread,))
-            if not await cursor.fetchone():
-                # Thread doesn't exist - skip step creation (no self-healing)
-                print(f"[DB] WARNING: create_step called for missing thread {val_thread} - skipping")
+            # Retry loop: wait for thread to be created (race condition handling)
+            thread_exists = False
+            for attempt in range(20):
+                cursor = await db.execute("SELECT 1 FROM threads WHERE id = ?", (val_thread,))
+                if await cursor.fetchone():
+                    thread_exists = True
+                    break
+                await asyncio.sleep(0.05)
+            
+            if not thread_exists:
+                # Thread still doesn't exist after retries - skip step creation
+                print(f"[DB] WARNING: create_step called for missing thread {val_thread} - skipping after 20 retries")
                 return
 
             # Mapiranje polja
