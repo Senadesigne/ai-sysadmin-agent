@@ -50,3 +50,6 @@ plan_za_sidebar.md
 test_*.py
 .chainlit/translations/
 
+
+backup/
+
