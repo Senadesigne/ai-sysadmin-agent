@@ -121,16 +121,18 @@ list_threads() shows thread in sidebar
    - All previous messages visible
    - Can continue conversation
 
-### Test 3: No Pending Thread Leaks
+### Test 3: Pending Threads Are Hidden
 
 1. Run Test 1
 2. **Verify in DB:**
    ```python
    cursor.execute("SELECT COUNT(*) FROM threads WHERE userId IS NULL OR userIdentifier IS NULL")
    print(cursor.fetchone())
-   # Should show: (0,) - no pending threads visible
+   # May show pending threads (transient state) - this is OK
+   # Pending threads exist briefly between create_step and update_thread
+   # They are hidden from sidebar and cannot be resumed (security)
    ```
-3. Check sidebar - should show only complete threads
+3. Check sidebar - should show only complete threads (pending filtered out)
 
 ### Test 4: Multiple Concurrent Chats
 
@@ -174,11 +176,32 @@ If upgrading from previous version:
 
 - [x] Deterministic thread creation (no race conditions)
 - [x] No silent step skipping (all data persisted)
-- [x] Security filtering (pending threads hidden)
-- [x] Resume protection (no unauthorized access)
+- [x] Security filtering (pending threads hidden from sidebar)
+- [x] Resume protection (get_thread returns None for pending)
+- [x] Author check (get_thread_author returns None for pending)
+- [x] User isolation (list_threads filters by userId)
 - [x] Idempotent operations (INSERT OR IGNORE)
 - [x] Partial updates (don't overwrite with NULL)
 - [x] Clean logging (traceable flow)
+
+## Pending Thread Semantics
+
+**Expected Behavior:**
+- Pending threads (userId=NULL or userIdentifier=NULL) may exist temporarily
+- Created by `create_step()` before `update_thread()` is called
+- Hidden from sidebar via `list_threads()` filter
+- Blocked from resume via `get_thread()` returning None
+- Blocked from author check via `get_thread_author()` returning None
+
+**Cleanup Strategy (Optional):**
+If app crashes between Phase A and Phase B, pending threads may accumulate:
+```sql
+-- Purge pending threads older than 24 hours
+DELETE FROM threads 
+WHERE (userId IS NULL OR userIdentifier IS NULL) 
+  AND datetime(createdAt) < datetime('now', '-24 hours');
+```
+Run this on startup or periodically as maintenance task.
 
 ## Support
 

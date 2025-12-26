@@ -164,7 +164,15 @@ class SQLiteDataLayer(BaseDataLayer):
             # Only show threads that have been populated with user data via update_thread
             conditions.append("(userId IS NOT NULL AND userIdentifier IS NOT NULL)")
             
-            # In dev mode, admin can see all threads - no user filtering
+            # SECURITY: Filter by current user - prevent cross-user data leaks
+            # Chainlit passes filters.userId when user is authenticated
+            if hasattr(filters, 'userId') and filters.userId:
+                conditions.append("userId = ?")
+                params.append(filters.userId)
+                print(f"[SECURITY] list_threads: filtering by userId={filters.userId}")
+            else:
+                print(f"[SECURITY] list_threads: NO userId filter (filters={filters})")
+            
             if filters.search:
                 conditions.append("name LIKE ?")
                 params.append(f"%{filters.search}%")
@@ -393,12 +401,16 @@ class SQLiteDataLayer(BaseDataLayer):
     async def delete_element(self, element_id: str): pass
     async def upsert_feedback(self, feedback): return ""
     async def delete_feedback(self, feedback_id): pass
-    async def get_thread_author(self, thread_id: str) -> str:
+    async def get_thread_author(self, thread_id: str) -> Optional[str]:
         """
-        Vraća userIdentifier iz threads tablice za dati thread_id.
-        Ako userIdentifier nije setovan, dohvaća users.identifier preko userId.
-        Chainlit često poziva ovu funkciju prije get_thread za author check.
-        In dev mode, return 'admin' to allow admin access to all threads.
+        Returns userIdentifier for the given thread_id.
+        
+        SECURITY RULES:
+        - If thread doesn't exist: return None
+        - If thread is pending (userId NULL or userIdentifier NULL): return None
+        - If thread is complete: return userIdentifier (NOT userId)
+        
+        This prevents unauthorized access to pending or non-existent threads.
         """
         await ensure_db_init()
         
@@ -409,22 +421,19 @@ class SQLiteDataLayer(BaseDataLayer):
             )
             row = await cursor.fetchone()
             
+            # Thread doesn't exist -> None
             if not row:
-                print(f"[RESUME] get_thread_author thread_id={thread_id} -> system")
-                return "system"
+                print(f"[SECURITY] get_thread_author thread_id={thread_id} -> None (not found)")
+                return None
             
             user_id, user_identifier = row[0], row[1]
             
-            # Ako userId postoji i nije prazan -> return userId
-            if user_id and user_id.strip():
-                print(f"[RESUME] get_thread_author thread_id={thread_id} -> {user_id}")
-                return user_id
-            # else ako userIdentifier postoji -> return userIdentifier
-            elif user_identifier:
-                print(f"[RESUME] get_thread_author thread_id={thread_id} -> {user_identifier}")
-                return user_identifier
-            # else return "system"
-            else:
-                print(f"[RESUME] get_thread_author thread_id={thread_id} -> system")
-                return "system"
+            # Thread is pending (no user context) -> None
+            if not user_id or not user_identifier:
+                print(f"[SECURITY] get_thread_author thread_id={thread_id} -> None (pending)")
+                return None
+            
+            # Thread is complete -> return userIdentifier (consistent with users.identifier)
+            print(f"[SECURITY] get_thread_author thread_id={thread_id} -> {user_identifier}")
+            return user_identifier
     async def delete_user_session(self, id): pass
