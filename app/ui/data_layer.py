@@ -272,6 +272,7 @@ class SQLiteDataLayer(BaseDataLayer):
 
     # --- STEP METHODS ---
     async def create_step(self, step_dict: StepDict):
+        """Create step - deterministic: only works if thread exists"""
         await ensure_db_init()
         
         val_thread = step_dict.get("threadId")
@@ -281,46 +282,12 @@ class SQLiteDataLayer(BaseDataLayer):
         print(f"[DB] ENTER create_step threadId={val_thread}, type={val_type}, name={val_name}")
         
         async with aiosqlite.connect(self.db_path) as db:
-            # Check if thread exists
-            cursor = await db.execute("SELECT userId, userIdentifier FROM threads WHERE id = ?", (val_thread,))
-            thread_row = await cursor.fetchone()
-            
-            if not thread_row:
-                # Thread doesn't exist - create placeholder with proper user context
-                print(f"[DB] create_step: thread {val_thread} not found, creating placeholder")
-                
-                # Try to get user context from current session
-                # First check if there's a userId in step metadata
-                step_metadata = step_dict.get("metadata", {})
-                user_id = step_metadata.get("userId")
-                user_identifier = step_metadata.get("userIdentifier")
-                
-                # If no user context in metadata, try to get from most recent thread
-                if not user_id:
-                    cursor = await db.execute(
-                        """SELECT userId, userIdentifier FROM threads 
-                           WHERE userId IS NOT NULL 
-                           ORDER BY createdAt DESC LIMIT 1"""
-                    )
-                    recent_thread = await cursor.fetchone()
-                    if recent_thread:
-                        user_id = recent_thread[0]
-                        user_identifier = recent_thread[1]
-                        print(f"[DB] create_step: using user context from recent thread - userId={user_id}, userIdentifier={user_identifier}")
-                    else:
-                        # Fallback - this shouldn't happen in normal flow
-                        print(f"[DB] create_step WARNING: no user context available for placeholder thread")
-                        user_id = None
-                        user_identifier = "placeholder"
-                
-                # Create placeholder thread that will be overwritten by real create_thread
-                await db.execute(
-                    """INSERT INTO threads (id, createdAt, name, userId, userIdentifier, tags, metadata)
-                       VALUES (?, ?, ?, ?, ?, ?, ?)""",
-                    (val_thread, datetime.utcnow().isoformat(), f"Thread-{val_thread[:8]}", 
-                     user_id, user_identifier, "[]", "{}")
-                )
-                print(f"[DB] create_step: created placeholder thread with userId={user_id}, userIdentifier={user_identifier}")
+            # Check if thread exists - deterministic check only
+            cursor = await db.execute("SELECT 1 FROM threads WHERE id = ?", (val_thread,))
+            if not await cursor.fetchone():
+                # Thread doesn't exist - skip step creation (no self-healing)
+                print(f"[DB] WARNING: create_step called for missing thread {val_thread} - skipping")
+                return
 
             # Mapiranje polja
             val_id = step_dict.get("id")
