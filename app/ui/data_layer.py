@@ -155,6 +155,21 @@ class SQLiteDataLayer(BaseDataLayer):
     async def list_threads(self, pagination, filters):
         print(f"[DB] ENTER list_threads pagination={pagination} filters={filters}")
         await ensure_db_init()
+        
+        # SECURITY: FAIL-CLOSED - if no user filter, return empty list
+        # Check for DEV_ADMIN_BYPASS env var to allow dev/admin access
+        import os
+        dev_admin_bypass = os.environ.get('DEV_ADMIN_BYPASS', '0') == '1'
+        
+        user_filter_value = getattr(filters, 'userId', None) if hasattr(filters, 'userId') else None
+        
+        if not user_filter_value and not dev_admin_bypass:
+            print(f"[SECURITY] list_threads: FAIL-CLOSED - no userId filter and DEV_ADMIN_BYPASS not set, returning 0 threads")
+            return PaginatedResponse(
+                data=[], 
+                pageInfo={"hasNextPage": False, "startCursor": None, "endCursor": None}
+            )
+        
         async with aiosqlite.connect(self.db_path) as db:
             query = "SELECT id, createdAt, name, userId, userIdentifier, tags, metadata FROM threads"
             params = []
@@ -165,13 +180,14 @@ class SQLiteDataLayer(BaseDataLayer):
             conditions.append("(userId IS NOT NULL AND userIdentifier IS NOT NULL)")
             
             # SECURITY: Filter by current user - prevent cross-user data leaks
-            # Chainlit passes filters.userId when user is authenticated
-            if hasattr(filters, 'userId') and filters.userId:
-                conditions.append("userId = ?")
-                params.append(filters.userId)
-                print(f"[SECURITY] list_threads: filtering by userId={filters.userId}")
-            else:
-                print(f"[SECURITY] list_threads: NO userId filter (filters={filters})")
+            # Support both userId (UUID) and userIdentifier (string like "admin")
+            # Chainlit may pass either UUID or identifier string in filters.userId
+            if user_filter_value:
+                conditions.append("(userId = ? OR userIdentifier = ?)")
+                params.extend([user_filter_value, user_filter_value])
+                print(f"[SECURITY] list_threads: filtering by userId OR userIdentifier = {user_filter_value}")
+            elif dev_admin_bypass:
+                print(f"[SECURITY] list_threads: DEV_ADMIN_BYPASS enabled, showing all threads")
             
             if filters.search:
                 conditions.append("name LIKE ?")
@@ -372,10 +388,21 @@ class SQLiteDataLayer(BaseDataLayer):
             val_created = step_dict.get("createdAt") or datetime.utcnow().isoformat()
             val_meta = json.dumps(step_dict.get("metadata") or {})
 
-            # Insert step (thread guaranteed to exist now)
+            # SAFE UPSERT: Use ON CONFLICT DO UPDATE instead of INSERT OR REPLACE
+            # REPLACE in SQLite is DELETE+INSERT and will NULL out other columns
+            # This preserves existing columns (start, end, generation, etc.) that we don't touch here
             await db.execute(
-                """INSERT OR REPLACE INTO steps (id, name, type, threadId, parentId, input, output, createdAt, metadata)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                """INSERT INTO steps (id, name, type, threadId, parentId, input, output, createdAt, metadata)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                   ON CONFLICT(id) DO UPDATE SET
+                     name = excluded.name,
+                     type = excluded.type,
+                     threadId = excluded.threadId,
+                     parentId = excluded.parentId,
+                     input = excluded.input,
+                     output = excluded.output,
+                     createdAt = COALESCE(steps.createdAt, excluded.createdAt),
+                     metadata = excluded.metadata""",
                 (val_id, val_name, val_type, val_thread, val_parent, val_input, val_output, val_created, val_meta)
             )
             await db.commit()

@@ -53,6 +53,20 @@ This prevents:
 - Permission leaks (resuming threads without ownership)
 - Data leaks (viewing threads without user context)
 
+### Fail-Closed List Threads
+
+**`list_threads()` is fail-closed** - if no user filter is provided, it returns an empty list:
+
+- Without `filters.userId` → returns 0 threads (safe default)
+- With `filters.userId` → filters by `userId = ? OR userIdentifier = ?`
+- Supports both UUID (e.g., `user-123-uuid`) and identifier string (e.g., `"admin"`)
+- Dev/admin bypass: Set `DEV_ADMIN_BYPASS=1` env var to show all threads (dev only)
+
+This prevents:
+- Accidental data leaks when user context is missing
+- Cross-user data access in multi-tenant environments
+- Default-open security posture (fail-closed is production-safe)
+
 ## Code Architecture
 
 ### Helper Functions
@@ -179,8 +193,10 @@ If upgrading from previous version:
 - [x] Security filtering (pending threads hidden from sidebar)
 - [x] Resume protection (get_thread returns None for pending)
 - [x] Author check (get_thread_author returns None for pending)
-- [x] User isolation (list_threads filters by userId)
-- [x] Idempotent operations (INSERT OR IGNORE)
+- [x] User isolation (list_threads filters by userId OR userIdentifier)
+- [x] Fail-closed list_threads (returns empty without user filter)
+- [x] Safe step UPSERT (preserves existing columns, no data loss)
+- [x] Idempotent operations (INSERT OR IGNORE for threads)
 - [x] Partial updates (don't overwrite with NULL)
 - [x] Clean logging (traceable flow)
 
@@ -202,6 +218,17 @@ WHERE (userId IS NULL OR userIdentifier IS NULL)
   AND datetime(createdAt) < datetime('now', '-24 hours');
 ```
 Run this on startup or periodically as maintenance task.
+
+## Data Quality: Safe Step UPSERT
+
+**`create_step()` uses safe UPSERT instead of INSERT OR REPLACE:**
+
+- **Before:** `INSERT OR REPLACE` (SQLite DELETE+INSERT) would NULL out columns not in INSERT
+- **After:** `INSERT ... ON CONFLICT(id) DO UPDATE SET ...` preserves existing columns
+- **Impact:** Prevents data loss for step fields like `start`, `end`, `generation`, etc.
+
+Example: If `update_step()` sets `start` time, then `create_step()` is called again (idempotency), 
+the `start` time is preserved instead of being NULL'd out.
 
 ## Support
 

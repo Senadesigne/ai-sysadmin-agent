@@ -316,6 +316,89 @@ async def test_two_phase_flow_persists_steps_and_finalizes(data_layer):
     assert thread_data['id'] == thread_id, "Thread ID should match"
     assert len(thread_data['steps']) == 1, "Thread should have 1 step"
 
+@pytest.mark.asyncio
+async def test_list_threads_fail_closed_without_user_filter(data_layer):
+    """BLOCKER TEST: list_threads returns empty list when no userId filter (fail-closed)"""
+    import aiosqlite
+    
+    # Create user and complete thread
+    async with aiosqlite.connect(data_layer.db_path) as db:
+        await db.execute("INSERT INTO users (id, identifier, metadata, createdAt) VALUES (?, ?, '{}', ?)",
+                        ("user-failclosed", "failclosed", datetime.utcnow().isoformat()))
+        await db.execute(
+            "INSERT INTO threads (id, createdAt, name, userId, userIdentifier, tags, metadata) VALUES (?, ?, ?, ?, ?, '[]', '{}')",
+            ("thread-failclosed", datetime.utcnow().isoformat(), "Test Thread", "user-failclosed", "failclosed")
+        )
+        await db.commit()
+    
+    # Test 1: No userId filter -> should return 0 threads (fail-closed)
+    filters_empty = MockFilter(userId=None)
+    pagination = MockPagination(first=10)
+    result = await data_layer.list_threads(pagination, filters_empty)
+    
+    assert len(result.data) == 0, f"list_threads should return 0 threads without userId filter (fail-closed), got {len(result.data)}"
+    
+    # Test 2: Empty string userId -> should also return 0 threads
+    filters_empty_string = MockFilter(userId="")
+    result2 = await data_layer.list_threads(pagination, filters_empty_string)
+    
+    assert len(result2.data) == 0, f"list_threads should return 0 threads with empty userId filter, got {len(result2.data)}"
+
+@pytest.mark.asyncio
+async def test_list_threads_filters_by_userid_or_identifier(data_layer):
+    """BLOCKER TEST: list_threads works with both userId (UUID) and userIdentifier (string)"""
+    import aiosqlite
+    import uuid
+    
+    # Create two users with UUIDs
+    admin_uuid = str(uuid.uuid4())
+    bob_uuid = str(uuid.uuid4())
+    
+    async with aiosqlite.connect(data_layer.db_path) as db:
+        await db.execute("INSERT INTO users (id, identifier, metadata, createdAt) VALUES (?, ?, '{}', ?)",
+                        (admin_uuid, "admin", datetime.utcnow().isoformat()))
+        await db.execute("INSERT INTO users (id, identifier, metadata, createdAt) VALUES (?, ?, '{}', ?)",
+                        (bob_uuid, "bob", datetime.utcnow().isoformat()))
+        
+        # Create threads: one for admin (with UUID + identifier), one for bob
+        await db.execute(
+            "INSERT INTO threads (id, createdAt, name, userId, userIdentifier, tags, metadata) VALUES (?, ?, ?, ?, ?, '[]', '{}')",
+            ("thread-admin", datetime.utcnow().isoformat(), "Admin Thread", admin_uuid, "admin")
+        )
+        await db.execute(
+            "INSERT INTO threads (id, createdAt, name, userId, userIdentifier, tags, metadata) VALUES (?, ?, ?, ?, ?, '[]', '{}')",
+            ("thread-bob", datetime.utcnow().isoformat(), "Bob Thread", bob_uuid, "bob")
+        )
+        await db.commit()
+    
+    pagination = MockPagination(first=10)
+    
+    # Test 1: Filter by userIdentifier string "admin" -> should return admin thread
+    filters_admin_identifier = MockFilter(userId="admin")
+    result_admin_ident = await data_layer.list_threads(pagination, filters_admin_identifier)
+    
+    admin_threads_by_ident = [t['id'] for t in result_admin_ident.data]
+    assert len(admin_threads_by_ident) == 1, f"Should return 1 thread for identifier 'admin', got {len(admin_threads_by_ident)}"
+    assert "thread-admin" in admin_threads_by_ident, "Should return admin thread when filtering by identifier"
+    assert "thread-bob" not in admin_threads_by_ident, "Should NOT return bob thread"
+    
+    # Test 2: Filter by userId UUID -> should also return admin thread (OR logic)
+    filters_admin_uuid = MockFilter(userId=admin_uuid)
+    result_admin_uuid = await data_layer.list_threads(pagination, filters_admin_uuid)
+    
+    admin_threads_by_uuid = [t['id'] for t in result_admin_uuid.data]
+    assert len(admin_threads_by_uuid) == 1, f"Should return 1 thread for UUID {admin_uuid}, got {len(admin_threads_by_uuid)}"
+    assert "thread-admin" in admin_threads_by_uuid, "Should return admin thread when filtering by UUID"
+    
+    # Test 3: Filter by bob identifier -> should return only bob thread
+    filters_bob = MockFilter(userId="bob")
+    result_bob = await data_layer.list_threads(pagination, filters_bob)
+    
+    bob_threads = [t['id'] for t in result_bob.data]
+    assert len(bob_threads) == 1, f"Should return 1 thread for bob, got {len(bob_threads)}"
+    assert "thread-bob" in bob_threads, "Should return bob thread"
+    assert "thread-admin" not in bob_threads, "Should NOT return admin thread"
+
 if __name__ == "__main__":
     # Run tests with pytest
     pytest.main([__file__, "-v", "-s"])

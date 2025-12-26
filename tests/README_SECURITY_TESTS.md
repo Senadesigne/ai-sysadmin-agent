@@ -2,27 +2,46 @@
 
 ## Summary of Changes
 
-This commit fixes **3 CRITICAL SECURITY BUGS** and corrects documentation assumptions:
+### Previous Security Fixes (Commit 1)
+This commit fixed **3 CRITICAL SECURITY BUGS** and corrected documentation assumptions:
 
-### 1. **FIXED: get_thread_author() Security Hole**
-   - **Before:** Returned "system" or userId for pending/missing threads
-   - **After:** Returns `None` for pending or non-existent threads
-   - **Impact:** Prevents unauthorized access to threads without user context
+1. **FIXED: get_thread_author() Security Hole**
+   - Returns `None` for pending or non-existent threads
+   - Prevents unauthorized access to threads without user context
 
-### 2. **FIXED: list_threads() Cross-User Data Leak**
-   - **Before:** No user filtering - all users could see all threads
-   - **After:** Filters by `filters.userId` - users only see their own threads
-   - **Impact:** Prevents cross-user data leaks in multi-tenant environments
+2. **FIXED: list_threads() Cross-User Data Leak**
+   - Filters by `filters.userId` - users only see their own threads
+   - Prevents cross-user data leaks in multi-tenant environments
 
-### 3. **FIXED: Documentation False Assumption**
-   - **Before:** Docs/tests claimed "pending threads must be 0 always"
-   - **After:** Corrected to "pending threads are transient and hidden from users"
-   - **Impact:** Realistic production expectations + cleanup strategy
+3. **FIXED: Documentation False Assumption**
+   - Corrected to "pending threads are transient and hidden from users"
+   - Realistic production expectations + cleanup strategy
 
-### 4. **ADDED: Production-Grade Automated Tests**
-   - 7 pytest tests covering all security invariants
+### Current Production-Grade Improvements (Commit 2)
+
+This commit adds **3 PRODUCTION-GRADE IMPROVEMENTS** to the two-phase model:
+
+### 1. **FAIL-CLOSED list_threads()**
+   - **Before:** If `filters.userId` missing → returned all complete threads (potential leak)
+   - **After:** If `filters.userId` missing → returns empty list (fail-closed)
+   - **Impact:** Safe default prevents accidental data leaks
+   - **Dev bypass:** Set `DEV_ADMIN_BYPASS=1` env var for dev/admin access
+
+### 2. **FLEXIBLE userId/userIdentifier Filtering**
+   - **Before:** Only filtered by `userId = ?`
+   - **After:** Filters by `userId = ? OR userIdentifier = ?`
+   - **Impact:** Works with both UUID and identifier string (e.g., "admin")
+   - **Chainlit compatibility:** Handles both filter formats
+
+### 3. **SAFE STEP UPSERT (Data Quality)**
+   - **Before:** `INSERT OR REPLACE` (DELETE+INSERT) NULLed out other columns
+   - **After:** `INSERT ... ON CONFLICT DO UPDATE` preserves existing columns
+   - **Impact:** Prevents data loss for step fields like `start`, `end`, `generation`
+
+### 4. **ADDED: 2 New Automated Tests**
+   - Total: 9 pytest tests covering all security invariants
    - Tests use isolated temp SQLite databases
-   - All tests pass ✅
+   - All tests pass ✅ (9/9)
 
 ## Running Tests
 
@@ -50,7 +69,7 @@ py test_thread_persistence.py
 
 ## Test Coverage
 
-### Security Invariants Tested
+### Security Invariants Tested (9 tests total)
 
 1. ✅ **test_get_thread_author_missing_returns_none**
    - Verifies `get_thread_author()` returns `None` for non-existent threads
@@ -80,11 +99,23 @@ py test_thread_persistence.py
    - Phase B: `update_thread()` finalizes with user data
    - Verifies security checks work at each phase
 
+8. ✅ **test_list_threads_fail_closed_without_user_filter** (NEW)
+   - Verifies `list_threads()` returns empty list when no userId filter
+   - Tests both `None` and empty string cases
+   - Fail-closed security posture
+
+9. ✅ **test_list_threads_filters_by_userid_or_identifier** (NEW)
+   - Verifies `list_threads()` works with both UUID and identifier string
+   - Creates users with UUIDs and identifiers ("admin", "bob")
+   - Tests filtering by identifier string → returns correct thread
+   - Tests filtering by UUID → returns correct thread
+   - Confirms OR logic works correctly
+
 ## Expected Output
 
 ```
 ============================= test session starts =============================
-collected 7 items
+collected 9 items
 
 tests/test_thread_security.py::test_get_thread_author_missing_returns_none PASSED
 tests/test_thread_security.py::test_get_thread_author_pending_returns_none PASSED
@@ -93,8 +124,10 @@ tests/test_thread_security.py::test_list_threads_filters_by_user PASSED
 tests/test_thread_security.py::test_list_threads_hides_pending PASSED
 tests/test_thread_security.py::test_get_thread_blocks_pending PASSED
 tests/test_thread_security.py::test_two_phase_flow_persists_steps_and_finalizes PASSED
+tests/test_thread_security.py::test_list_threads_fail_closed_without_user_filter PASSED
+tests/test_thread_security.py::test_list_threads_filters_by_userid_or_identifier PASSED
 
-======================= 7 passed in 1.50s ========================
+======================= 9 passed in 1.56s ========================
 ```
 
 ## Files Modified
@@ -118,11 +151,17 @@ tests/test_thread_security.py::test_two_phase_flow_persists_steps_and_finalizes 
 
 ## Acceptance Criteria ✅
 
+### Commit 1 (Previous)
 - [x] No "silent skip" in create_step (nema retry+skip)
 - [x] get_thread_author ne može vratiti autora za pending
 - [x] list_threads nikad ne vraća pending niti tuđe threade
 - [x] Dokumentacija više ne tvrdi "pending mora biti 0 uvijek"
-- [x] Testovi prolaze (7/7 PASSED)
+
+### Commit 2 (Current)
+- [x] list_threads is fail-closed (returns empty without user filter)
+- [x] list_threads supports userId OR userIdentifier filtering
+- [x] create_step uses safe UPSERT (no data loss)
+- [x] All tests pass (9/9 PASSED)
 
 ## Production Deployment
 
