@@ -193,6 +193,7 @@ class SQLiteDataLayer(BaseDataLayer):
             )
 
     async def update_thread(self, thread_id: str, name: Optional[str] = None, user_id: Optional[str] = None, metadata: Optional[Dict] = None, tags: Optional[List[str]] = None):
+        print(f"[DB] ENTER update_thread threadId={thread_id}, name={name}, userId={user_id}")
         async with aiosqlite.connect(self.db_path) as db:
             if name: 
                 await db.execute("UPDATE threads SET name = ? WHERE id = ?", (name, thread_id))
@@ -205,15 +206,17 @@ class SQLiteDataLayer(BaseDataLayer):
             await db.commit()
 
     async def create_thread(self, thread_dict: Any) -> str:
-        """Create new thread"""
+        """Create new thread - uses UPSERT to handle race conditions"""
         await ensure_db_init()
-        thread_id = str(uuid.uuid4())
+        thread_id = self._get(thread_dict, "id") or str(uuid.uuid4())  # Allow passing existing ID
         created_at = datetime.utcnow().isoformat()
         name = self._get(thread_dict, "name")
         user_id = self._get(thread_dict, "userId") or self._get(thread_dict, "user_id")
         incoming_user_identifier = self._get(thread_dict, "userIdentifier") or self._get(thread_dict, "user_identifier")
         tags = json.dumps(self._get(thread_dict, "tags", []))
         metadata = json.dumps(self._get(thread_dict, "metadata", {}))
+        
+        print(f"[DB] ENTER create_thread threadId={thread_id}, userId={user_id}, userIdentifier={incoming_user_identifier}, name={name}")
         
         # Resolve proper userIdentifier - never save "system"
         user_identifier = None
@@ -239,12 +242,25 @@ class SQLiteDataLayer(BaseDataLayer):
         print(f"[DB] create_thread resolved userIdentifier={user_identifier} from userId={user_id} (incoming={incoming_user_identifier})")
         
         async with aiosqlite.connect(self.db_path) as db:
+            # Use UPSERT: INSERT or UPDATE if exists (overwrite placeholder with real data)
             await db.execute(
-                "INSERT INTO threads (id, createdAt, name, userId, userIdentifier, tags, metadata) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                """INSERT INTO threads (id, createdAt, name, userId, userIdentifier, tags, metadata) 
+                   VALUES (?, ?, ?, ?, ?, ?, ?)
+                   ON CONFLICT(id) DO UPDATE SET
+                     name = COALESCE(excluded.name, threads.name),
+                     userId = COALESCE(excluded.userId, threads.userId),
+                     userIdentifier = CASE 
+                       WHEN excluded.userIdentifier IS NOT NULL AND excluded.userIdentifier != 'system' 
+                       THEN excluded.userIdentifier 
+                       ELSE threads.userIdentifier 
+                     END,
+                     tags = COALESCE(excluded.tags, threads.tags),
+                     metadata = COALESCE(excluded.metadata, threads.metadata)""",
                 (thread_id, created_at, name, user_id, user_identifier, tags, metadata)
             )
             await db.commit()
         
+        print(f"[DB] EXIT create_thread threadId={thread_id}")
         return thread_id
 
     async def delete_thread(self, thread_id: str):
@@ -257,19 +273,57 @@ class SQLiteDataLayer(BaseDataLayer):
     # --- STEP METHODS ---
     async def create_step(self, step_dict: StepDict):
         await ensure_db_init()
+        
+        val_thread = step_dict.get("threadId")
+        val_type = step_dict.get("type")
+        val_name = step_dict.get("name")
+        
+        print(f"[DB] ENTER create_step threadId={val_thread}, type={val_type}, name={val_name}")
+        
         async with aiosqlite.connect(self.db_path) as db:
             # Check if thread exists
-            cursor = await db.execute("SELECT 1 FROM threads WHERE id = ?", (step_dict["threadId"],))
-            if not await cursor.fetchone():
-                # Thread doesn't exist - log warning and return early
-                print(f"[DB] WARNING: create_step called for non-existent thread {step_dict['threadId']} - skipping step creation")
-                return
+            cursor = await db.execute("SELECT userId, userIdentifier FROM threads WHERE id = ?", (val_thread,))
+            thread_row = await cursor.fetchone()
+            
+            if not thread_row:
+                # Thread doesn't exist - create placeholder with proper user context
+                print(f"[DB] create_step: thread {val_thread} not found, creating placeholder")
+                
+                # Try to get user context from current session
+                # First check if there's a userId in step metadata
+                step_metadata = step_dict.get("metadata", {})
+                user_id = step_metadata.get("userId")
+                user_identifier = step_metadata.get("userIdentifier")
+                
+                # If no user context in metadata, try to get from most recent thread
+                if not user_id:
+                    cursor = await db.execute(
+                        """SELECT userId, userIdentifier FROM threads 
+                           WHERE userId IS NOT NULL 
+                           ORDER BY createdAt DESC LIMIT 1"""
+                    )
+                    recent_thread = await cursor.fetchone()
+                    if recent_thread:
+                        user_id = recent_thread[0]
+                        user_identifier = recent_thread[1]
+                        print(f"[DB] create_step: using user context from recent thread - userId={user_id}, userIdentifier={user_identifier}")
+                    else:
+                        # Fallback - this shouldn't happen in normal flow
+                        print(f"[DB] create_step WARNING: no user context available for placeholder thread")
+                        user_id = None
+                        user_identifier = "placeholder"
+                
+                # Create placeholder thread that will be overwritten by real create_thread
+                await db.execute(
+                    """INSERT INTO threads (id, createdAt, name, userId, userIdentifier, tags, metadata)
+                       VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                    (val_thread, datetime.utcnow().isoformat(), f"Thread-{val_thread[:8]}", 
+                     user_id, user_identifier, "[]", "{}")
+                )
+                print(f"[DB] create_step: created placeholder thread with userId={user_id}, userIdentifier={user_identifier}")
 
             # Mapiranje polja
             val_id = step_dict.get("id")
-            val_name = step_dict.get("name")
-            val_type = step_dict.get("type")
-            val_thread = step_dict.get("threadId")
             val_parent = step_dict.get("parentId")
             val_input = str(step_dict.get("input") or "")
             val_output = str(step_dict.get("output") or "")
@@ -282,6 +336,8 @@ class SQLiteDataLayer(BaseDataLayer):
                 (val_id, val_name, val_type, val_thread, val_parent, val_input, val_output, val_created, val_meta)
             )
             await db.commit()
+        
+        print(f"[DB] EXIT create_step threadId={val_thread}")
 
     async def update_step(self, step_dict: StepDict):
         async with aiosqlite.connect(self.db_path) as db:
