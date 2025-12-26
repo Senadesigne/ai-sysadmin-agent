@@ -62,6 +62,8 @@ This prevents:
 - Supports both UUID (e.g., `user-123-uuid`) and identifier string (e.g., `"admin"`)
 - Dev/admin bypass: Set `DEV_ADMIN_BYPASS=1` env var to show all threads (dev only)
 
+**⚠️ SECURITY WARNING:** `DEV_ADMIN_BYPASS` must NEVER be used in production environments. It is strictly for development and debugging purposes only.
+
 This prevents:
 - Accidental data leaks when user context is missing
 - Cross-user data access in multi-tenant environments
@@ -229,6 +231,30 @@ Run this on startup or periodically as maintenance task.
 
 Example: If `update_step()` sets `start` time, then `create_step()` is called again (idempotency), 
 the `start` time is preserved instead of being NULL'd out.
+
+## Environment Variables
+
+### DEV_ADMIN_BYPASS
+
+**Purpose:** Development/debugging bypass for fail-closed `list_threads()` behavior.
+
+**Default:** `0` (disabled)
+
+**Usage:**
+```bash
+# Development only - NEVER in production
+export DEV_ADMIN_BYPASS=1
+```
+
+**Behavior:**
+- When `0` (default): `list_threads()` returns empty list if no `filters.userId` provided (fail-closed)
+- When `1`: `list_threads()` shows all complete threads regardless of user filter (dev/admin mode)
+
+**⚠️ CRITICAL SECURITY WARNING:**
+- **NEVER** set `DEV_ADMIN_BYPASS=1` in production environments
+- **NEVER** include in `.env` files, docker-compose, or deployment scripts
+- **ONLY** use locally for development and debugging
+- Enabling in production bypasses user isolation and creates data leak vulnerabilities
 
 ## Support
 

@@ -25,7 +25,7 @@ This commit adds **3 PRODUCTION-GRADE IMPROVEMENTS** to the two-phase model:
    - **Before:** If `filters.userId` missing → returned all complete threads (potential leak)
    - **After:** If `filters.userId` missing → returns empty list (fail-closed)
    - **Impact:** Safe default prevents accidental data leaks
-   - **Dev bypass:** Set `DEV_ADMIN_BYPASS=1` env var for dev/admin access
+   - **Dev bypass:** Set `DEV_ADMIN_BYPASS=1` env var for dev/admin access (⚠️ NEVER in production)
 
 ### 2. **FLEXIBLE userId/userIdentifier Filtering**
    - **Before:** Only filtered by `userId = ?`

@@ -79,6 +79,8 @@ DEV_NO_AUTH=true
 
 When `DEV_NO_AUTH=true`, authentication is bypassed for faster development cycles.
 
+**⚠️ Security Note:** Development bypass flags (`DEV_NO_AUTH`, `DEV_ADMIN_BYPASS`) must NEVER be enabled in production environments. See [THREAD_PERSISTENCE.md](THREAD_PERSISTENCE.md) for security details.
+
 ### LLM Optional
 The application works with or without LLM integration:
 
