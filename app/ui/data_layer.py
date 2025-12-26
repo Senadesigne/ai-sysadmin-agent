@@ -286,10 +286,11 @@ class SQLiteDataLayer(BaseDataLayer):
             # Retry loop: wait for thread to be created (race condition handling)
             thread_exists = False
             for attempt in range(20):
-                cursor = await db.execute("SELECT 1 FROM threads WHERE id = ?", (val_thread,))
-                if await cursor.fetchone():
-                    thread_exists = True
-                    break
+                async with db.execute("SELECT 1 FROM threads WHERE id = ?", (val_thread,)) as cursor:
+                    row = await cursor.fetchone()
+                    if row:
+                        thread_exists = True
+                        break
                 await asyncio.sleep(0.05)
             
             if not thread_exists:
