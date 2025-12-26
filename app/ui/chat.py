@@ -41,7 +41,8 @@ def auth(username: str, password: str):
     
     # Dev credentials
     if username == "admin" and password == "admin":
-        user_identifier = "antigravity_dev_user"
+        # Use username as identifier for consistency with existing threads
+        user_identifier = username
         print(f"[AUTH] Login success user={username}")
         print(f"[AUTH] success identifier={user_identifier}")
         return cl.User(
@@ -193,8 +194,8 @@ async def set_starters():
             ),
     ]
 
-@cl.on_chat_start
-async def start():
+async def initialize_session():
+    """Common initialization logic for both new chats and resumed threads"""
     repo = InventoryRepository()
     repo.initialize_db()
     
@@ -203,7 +204,22 @@ async def start():
     capability_state = CapabilityState()
     status_message = capability_state.get_status_message()
     
+    return status_message
+
+@cl.on_chat_start
+async def start():
+    status_message = await initialize_session()
     await cl.Message(content=f"🤖 **AI SysAdmin Agent Ready**\n\n{status_message}").send()
+
+@cl.on_chat_resume
+async def resume(thread):
+    """Handle resuming an existing thread"""
+    print(f"[RESUME] Resuming thread: {thread.get('id')} name: {thread.get('name')}")
+    
+    # Initialize session state (same as new chat)
+    await initialize_session()
+    
+    print(f"[RESUME] Thread resume completed successfully")
 
 @cl.on_message
 async def main(message: cl.Message):

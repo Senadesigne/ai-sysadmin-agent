@@ -17,7 +17,7 @@ _db_init_lock = asyncio.Lock()
 
 async def init_db():
     """Initialize SQLite database with required tables for Chainlit persistence."""
-    print(f"[starter-kit] Using Chainlit DB at: {DB_PATH}")
+    print(f"[starter-kit] Using Chainlit DB at: {DB_NAME}")
     async with aiosqlite.connect(DB_NAME) as db:
         # Omogući Foreign Keys
         await db.execute("PRAGMA foreign_keys = ON;")
