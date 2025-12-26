@@ -92,6 +92,11 @@ class SQLiteDataLayer(BaseDataLayer):
             
             print(f"[RESUME] SQL query found row: id={thread_row[0]} name={thread_row[2]} userId={thread_row[3]} userIdentifier={thread_row[4]}")
             
+            # SECURITY: Don't allow resuming pending threads (without user context)
+            if not thread_row[3] or not thread_row[4]:  # userId or userIdentifier is NULL
+                print(f"[RESUME] Thread {thread_id} is pending (no user context), cannot resume")
+                return None
+            
             # Mapiranje rezultata - koristimo eksplicitne indekse za sigurnost
             thread_data = {
                 "id": thread_row[0],
@@ -155,6 +160,10 @@ class SQLiteDataLayer(BaseDataLayer):
             params = []
             conditions = []
             
+            # SECURITY: Never show pending threads (without user context) in sidebar
+            # Only show threads that have been populated with user data via update_thread
+            conditions.append("(userId IS NOT NULL AND userIdentifier IS NOT NULL)")
+            
             # In dev mode, admin can see all threads - no user filtering
             if filters.search:
                 conditions.append("name LIKE ?")
@@ -194,17 +203,50 @@ class SQLiteDataLayer(BaseDataLayer):
             )
 
     async def update_thread(self, thread_id: str, name: Optional[str] = None, user_id: Optional[str] = None, metadata: Optional[Dict] = None, tags: Optional[List[str]] = None):
+        """
+        Phase B: Update thread with real data (UPSERT).
+        If thread doesn't exist (shouldn't happen after Phase A), creates it.
+        If thread exists but has NULL fields, populates them.
+        """
         print(f"[DB] ENTER update_thread threadId={thread_id}, name={name}, userId={user_id}")
+        
         async with aiosqlite.connect(self.db_path) as db:
-            if name: 
-                await db.execute("UPDATE threads SET name = ? WHERE id = ?", (name, thread_id))
-            if user_id: 
-                await db.execute("UPDATE threads SET userId = ? WHERE id = ?", (user_id, thread_id))
-            if metadata: 
-                await db.execute("UPDATE threads SET metadata = ? WHERE id = ?", (json.dumps(metadata), thread_id))
-            if tags: 
-                await db.execute("UPDATE threads SET tags = ? WHERE id = ?", (json.dumps(tags), thread_id))
+            # Check if thread exists
+            async with db.execute("SELECT 1 FROM threads WHERE id = ?", (thread_id,)) as cursor:
+                exists = await cursor.fetchone()
+            
+            if not exists:
+                # Thread doesn't exist - create it with provided data (fallback, shouldn't happen)
+                print(f"[DB] update_thread: thread {thread_id} doesn't exist, creating via INSERT")
+                user_identifier = await self._resolve_user_identifier(user_id) if user_id else None
+                await db.execute(
+                    """INSERT INTO threads (id, createdAt, name, userId, userIdentifier, tags, metadata)
+                       VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                    (thread_id, datetime.utcnow().isoformat(), name, user_id, user_identifier,
+                     json.dumps(tags) if tags else '[]', json.dumps(metadata) if metadata else '{}')
+                )
+            else:
+                # Thread exists - update only provided fields (partial update)
+                if name is not None:
+                    await db.execute("UPDATE threads SET name = ? WHERE id = ?", (name, thread_id))
+                
+                if user_id is not None:
+                    # Also resolve and update userIdentifier
+                    user_identifier = await self._resolve_user_identifier(user_id)
+                    await db.execute("UPDATE threads SET userId = ?, userIdentifier = ? WHERE id = ?", 
+                                   (user_id, user_identifier, thread_id))
+                
+                if metadata is not None:
+                    await db.execute("UPDATE threads SET metadata = ? WHERE id = ?", 
+                                   (json.dumps(metadata), thread_id))
+                
+                if tags is not None:
+                    await db.execute("UPDATE threads SET tags = ? WHERE id = ?", 
+                                   (json.dumps(tags), thread_id))
+            
             await db.commit()
+        
+        print(f"[DB] EXIT update_thread threadId={thread_id}")
 
     async def create_thread(self, thread_dict: Any) -> str:
         """Create new thread - uses UPSERT to handle race conditions"""
@@ -271,9 +313,37 @@ class SQLiteDataLayer(BaseDataLayer):
             await db.execute("DELETE FROM threads WHERE id = ?", (thread_id,))
             await db.commit()
 
+    # --- HELPER METHODS (TWO-PHASE THREAD CREATION) ---
+    
+    async def _ensure_thread_exists(self, thread_id: str, db) -> None:
+        """
+        Phase A: Ensure minimal thread row exists before creating steps.
+        Creates a "pending" thread with NULL user fields that will be populated by update_thread.
+        Uses INSERT OR IGNORE to be idempotent.
+        """
+        await db.execute(
+            """INSERT OR IGNORE INTO threads (id, createdAt, name, userId, userIdentifier, tags, metadata)
+               VALUES (?, ?, NULL, NULL, NULL, '[]', '{}')""",
+            (thread_id, datetime.utcnow().isoformat())
+        )
+        print(f"[DB] _ensure_thread_exists: thread {thread_id} ensured (pending state)")
+    
+    async def _resolve_user_identifier(self, user_id: str) -> Optional[str]:
+        """Resolve userIdentifier from userId by querying users table"""
+        if not user_id:
+            return None
+        async with aiosqlite.connect(self.db_path) as db:
+            async with db.execute("SELECT identifier FROM users WHERE id = ?", (user_id,)) as cursor:
+                row = await cursor.fetchone()
+                return row[0] if row else None
+
     # --- STEP METHODS ---
     async def create_step(self, step_dict: StepDict):
-        """Create step - deterministic: only works if thread exists"""
+        """
+        Phase A: Create step with deterministic thread ensuring.
+        If thread doesn't exist, creates minimal pending thread (no user context yet).
+        Phase B (update_thread) will populate user fields later.
+        """
         await ensure_db_init()
         
         val_thread = step_dict.get("threadId")
@@ -283,21 +353,9 @@ class SQLiteDataLayer(BaseDataLayer):
         print(f"[DB] ENTER create_step threadId={val_thread}, type={val_type}, name={val_name}")
         
         async with aiosqlite.connect(self.db_path) as db:
-            # Retry loop: wait for thread to be created (race condition handling)
-            thread_exists = False
-            for attempt in range(20):
-                async with db.execute("SELECT 1 FROM threads WHERE id = ?", (val_thread,)) as cursor:
-                    row = await cursor.fetchone()
-                    if row:
-                        thread_exists = True
-                        break
-                await asyncio.sleep(0.05)
+            # Phase A: Ensure thread exists (create minimal pending thread if needed)
+            await self._ensure_thread_exists(val_thread, db)
             
-            if not thread_exists:
-                # Thread still doesn't exist after retries - skip step creation
-                print(f"[DB] WARNING: create_step called for missing thread {val_thread} - skipping after 20 retries")
-                return
-
             # Mapiranje polja
             val_id = step_dict.get("id")
             val_parent = step_dict.get("parentId")
@@ -306,6 +364,7 @@ class SQLiteDataLayer(BaseDataLayer):
             val_created = step_dict.get("createdAt") or datetime.utcnow().isoformat()
             val_meta = json.dumps(step_dict.get("metadata") or {})
 
+            # Insert step (thread guaranteed to exist now)
             await db.execute(
                 """INSERT OR REPLACE INTO steps (id, name, type, threadId, parentId, input, output, createdAt, metadata)
                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
