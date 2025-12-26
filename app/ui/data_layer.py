@@ -157,9 +157,9 @@ class SQLiteDataLayer(BaseDataLayer):
         await ensure_db_init()
         
         # SECURITY: FAIL-CLOSED - if no user filter, return empty list
-        # Check for DEV_ADMIN_BYPASS env var to allow dev/admin access
-        import os
-        dev_admin_bypass = os.environ.get('DEV_ADMIN_BYPASS', '0') == '1'
+        # Check for DEV_ADMIN_BYPASS (validated at startup in settings.py)
+        from app.config.settings import DEV_ADMIN_BYPASS
+        dev_admin_bypass = DEV_ADMIN_BYPASS
         
         user_filter_value = getattr(filters, 'userId', None) if hasattr(filters, 'userId') else None
         

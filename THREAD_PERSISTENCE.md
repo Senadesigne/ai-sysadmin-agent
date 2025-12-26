@@ -256,6 +256,12 @@ export DEV_ADMIN_BYPASS=1
 - **ONLY** use locally for development and debugging
 - Enabling in production bypasses user isolation and creates data leak vulnerabilities
 
+**🛡️ PRODUCTION SAFETY GUARD:**
+- Application will **hard-fail at startup** if `DEV_ADMIN_BYPASS=1` and `AUTH_MODE=prod`
+- Raises `RuntimeError` with clear security error message
+- Prevents accidental deployment with bypass enabled
+- See `tests/test_production_safety_guard.py` for test coverage
+
 ## Support
 
 For issues or questions, check:

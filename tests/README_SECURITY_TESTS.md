@@ -17,9 +17,13 @@ This commit fixed **3 CRITICAL SECURITY BUGS** and corrected documentation assum
    - Corrected to "pending threads are transient and hidden from users"
    - Realistic production expectations + cleanup strategy
 
-### Current Production-Grade Improvements (Commit 2)
+### Production-Grade Improvements (Commit 2)
 
-This commit adds **3 PRODUCTION-GRADE IMPROVEMENTS** to the two-phase model:
+This commit added **3 PRODUCTION-GRADE IMPROVEMENTS** to the two-phase model:
+
+### Production Safety Guard (Commit 3)
+
+This commit adds **HARD-FAIL PROTECTION** against production misconfigurations:
 
 ### 1. **FAIL-CLOSED list_threads()**
    - **Before:** If `filters.userId` missing → returned all complete threads (potential leak)
@@ -43,6 +47,12 @@ This commit adds **3 PRODUCTION-GRADE IMPROVEMENTS** to the two-phase model:
    - Tests use isolated temp SQLite databases
    - All tests pass ✅ (9/9)
 
+### 5. **PRODUCTION SAFETY GUARD (NEW)**
+   - **Startup check:** Hard-fails if `DEV_ADMIN_BYPASS=1` and `AUTH_MODE=prod`
+   - **Runtime warning:** Logs security warning if `DEV_ADMIN_BYPASS=1` in any mode
+   - **Impact:** Prevents accidental production deployment with bypass enabled
+   - **Tests:** 5 new pytest tests in `test_production_safety_guard.py` (5/5 PASSED)
+
 ## Running Tests
 
 ### Prerequisites
@@ -52,8 +62,14 @@ py -m pip install pytest pytest-asyncio
 
 ### Run Security Tests
 ```bash
-# Run all security tests
+# Run all thread security tests
 py -m pytest tests/test_thread_security.py -v -s
+
+# Run production safety guard tests
+py -m pytest tests/test_production_safety_guard.py -v
+
+# Run ALL security tests
+py -m pytest tests/ -v -k "security or guard"
 
 # Run specific test
 py -m pytest tests/test_thread_security.py::test_get_thread_author_pending_returns_none -v
