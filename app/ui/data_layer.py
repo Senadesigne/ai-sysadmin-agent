@@ -77,7 +77,7 @@ class SQLiteDataLayer(BaseDataLayer):
 
     # --- THREAD METHODS ---
     async def get_thread(self, thread_id: str) -> Optional[ThreadDict]:
-        print(f"[DB] *** ENTER get_thread thread_id={thread_id} ***")
+        print(f"[RESUME] get_thread called with thread_id={thread_id}")
         await ensure_db_init()
         
         async with aiosqlite.connect(self.db_path) as db:
@@ -86,10 +86,10 @@ class SQLiteDataLayer(BaseDataLayer):
             thread_row = await cursor.fetchone()
             
             if not thread_row:
-                print(f"[DB] NOT FOUND thread_id={thread_id}")
+                print(f"[RESUME] SQL query returned no row for thread_id={thread_id}")
                 return None
             
-            print(f"[DB] Found thread: id={thread_row[0]} name={thread_row[2]} userId={thread_row[3]} userIdentifier={thread_row[4]}")
+            print(f"[RESUME] SQL query found row: id={thread_row[0]} name={thread_row[2]} userId={thread_row[3]} userIdentifier={thread_row[4]}")
             
             # Mapiranje rezultata - koristimo eksplicitne indekse za sigurnost
             thread_data = {
@@ -142,7 +142,8 @@ class SQLiteDataLayer(BaseDataLayer):
                 }
                 thread_data["steps"].append(step)
             
-            print(f"[DB] EXIT get_thread -> returning thread with {len(thread_data['steps'])} steps")
+            print(f"[RESUME] returning dict with keys: {list(thread_data.keys())}")
+            print(f"[RESUME] thread_data type: {type(thread_data)}")
             return thread_data
 
     async def list_threads(self, pagination, filters):
@@ -257,14 +258,12 @@ class SQLiteDataLayer(BaseDataLayer):
     async def create_step(self, step_dict: StepDict):
         await ensure_db_init()
         async with aiosqlite.connect(self.db_path) as db:
-            # Self-healing: Ako thread ne postoji, kreiraj ga
+            # Check if thread exists
             cursor = await db.execute("SELECT 1 FROM threads WHERE id = ?", (step_dict["threadId"],))
             if not await cursor.fetchone():
-                # Use OR IGNORE to avoid duplicate thread insert errors
-                await db.execute(
-                    "INSERT OR IGNORE INTO threads (id, createdAt, name, userIdentifier) VALUES (?, ?, ?, ?)", 
-                    (step_dict["threadId"], datetime.utcnow().isoformat(), "Auto-created", "system")
-                )
+                # Thread doesn't exist - log warning and return early
+                print(f"[DB] WARNING: create_step called for non-existent thread {step_dict['threadId']} - skipping step creation")
+                return
 
             # Mapiranje polja
             val_id = step_dict.get("id")
@@ -308,9 +307,8 @@ class SQLiteDataLayer(BaseDataLayer):
         Vraća userIdentifier iz threads tablice za dati thread_id.
         Ako userIdentifier nije setovan, dohvaća users.identifier preko userId.
         Chainlit često poziva ovu funkciju prije get_thread za author check.
-        In dev mode, return current user identifier to allow admin access to all threads.
+        In dev mode, return 'admin' to allow admin access to all threads.
         """
-        print(f"[DB] *** ENTER get_thread_author thread_id={thread_id} ***")
         await ensure_db_init()
         
         async with aiosqlite.connect(self.db_path) as db:
@@ -321,27 +319,21 @@ class SQLiteDataLayer(BaseDataLayer):
             row = await cursor.fetchone()
             
             if not row:
-                print(f"[DB] get_thread_author -> thread_id={thread_id} not found, return=admin")
-                return "admin"  # Allow admin access in dev mode
+                print(f"[RESUME] get_thread_author thread_id={thread_id} -> system")
+                return "system"
             
             user_id, user_identifier = row[0], row[1]
             
-            # Return the actual thread owner to match Chainlit's expectations
-            if user_identifier and user_identifier != "system":
-                print(f"[DB] get_thread_author -> thread_id={thread_id} userIdentifier={user_identifier} userId={user_id} return={user_identifier}")
+            # Ako userId postoji i nije prazan -> return userId
+            if user_id and user_id.strip():
+                print(f"[RESUME] get_thread_author thread_id={thread_id} -> {user_id}")
+                return user_id
+            # else ako userIdentifier postoji -> return userIdentifier
+            elif user_identifier:
+                print(f"[RESUME] get_thread_author thread_id={thread_id} -> {user_identifier}")
                 return user_identifier
-            elif user_id:
-                # Fallback to userId lookup
-                cursor = await db.execute(
-                    "SELECT identifier FROM users WHERE id = ?", 
-                    (user_id,)
-                )
-                user_row = await cursor.fetchone()
-                if user_row:
-                    identifier = user_row[0]
-                    print(f"[DB] get_thread_author -> thread_id={thread_id} userIdentifier={user_identifier} userId={user_id} return={identifier} (from users table)")
-                    return identifier
-            
-            print(f"[DB] get_thread_author -> thread_id={thread_id} userIdentifier={user_identifier} userId={user_id} return=admin (fallback)")
-            return "admin"
+            # else return "system"
+            else:
+                print(f"[RESUME] get_thread_author thread_id={thread_id} -> system")
+                return "system"
     async def delete_user_session(self, id): pass
