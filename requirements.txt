@@ -15,3 +15,7 @@ asyncssh
 netmiko
 
 pydantic<2.10
+
+# Testing
+pytest
+pytest-asyncio
