@@ -25,7 +25,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '.
 
 from app.data.inventory_repo import InventoryRepository
 from app.llm.client import get_llm
-from app.rag.engine import RagEngine
+from app.rag.engine import get_rag_engine
 from chainlit.input_widget import Select, Switch, Slider
 import chainlit.data as cl_data
 
@@ -84,7 +84,7 @@ if auth_secret:
 else:
     print("[AUTH] WARNING: CHAINLIT_AUTH_SECRET not found in .env")
 
-rag_engine = RagEngine()
+rag_engine = get_rag_engine()
 
 # --- PERSISTENCE SETUP ---
 # (Data layer already registered at top)
@@ -288,14 +288,24 @@ async def main(message: cl.Message):
     # --- RAG ---
     # Only use RAG if there is text to query, otherwise context is empty
     context_str = ""
+    rag_unavailable = False
+    
     if message.content:
         context_chunks = rag_engine.query(message.content)
-        context_str = "\n\n".join(context_chunks)
+        if context_chunks:
+            context_str = "\n\n".join(context_chunks)
+        elif not rag_engine.is_enabled:
+            rag_unavailable = True
 
     # --- PROMPT FOR ACTION ---
+    # Add RAG unavailability notice if needed
+    rag_notice = ""
+    if rag_unavailable:
+        rag_notice = "\n**NOTE:** Knowledge base is currently unavailable.\n"
+    
     system_instruction = f"""Ti si AI SysAdmin Agent.
 Tvoj cilj je pomoći korisniku s održavanjem servera i mrežne opreme.
-
+{rag_notice}
 KONTEKST ZNANJA (RAG):
 {context_str}
 
