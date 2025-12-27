@@ -234,7 +234,8 @@ async def start():
     
     # Thread ID from session
     try:
-        thread_id = cl.context.session.thread_id if hasattr(cl.context, 'session') else None
+        thread_id = getattr(getattr(cl.context, "session", None), "thread_id", None)
+
         if thread_id:
             event_data["thread_id"] = thread_id
     except Exception:
