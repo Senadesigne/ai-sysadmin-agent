@@ -208,6 +208,42 @@ async def initialize_session():
 
 @cl.on_chat_start
 async def start():
+    # Emit chat_started event
+    from app.core.events import get_emitter
+    
+    event_data = {}
+    
+    # Collect available context (never log secrets)
+    try:
+        user_session = cl.user_session.get("user")
+        if user_session:
+            event_data["user_identifier"] = getattr(user_session, "identifier", None)
+        else:
+            # Try alternative method for getting user
+            user = cl.context.user if hasattr(cl.context, 'user') else None
+            if user:
+                event_data["user_identifier"] = getattr(user, "identifier", None)
+    except Exception:
+        pass  # User info not available
+    
+    # Auth mode from environment
+    try:
+        event_data["auth_mode"] = os.getenv("AUTH_MODE", "dev")
+    except Exception:
+        pass
+    
+    # Thread ID from session
+    try:
+        thread_id = cl.context.session.thread_id if hasattr(cl.context, 'session') else None
+        if thread_id:
+            event_data["thread_id"] = thread_id
+    except Exception:
+        pass
+    
+    # Emit event (safe - won't crash if it fails)
+    emitter = get_emitter()
+    emitter.emit("chat_started", event_data)
+    
     status_message = await initialize_session()
     await cl.Message(content=f"🤖 **AI SysAdmin Agent Ready**\n\n{status_message}").send()
 
