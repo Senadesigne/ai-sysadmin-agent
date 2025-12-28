@@ -260,6 +260,60 @@ async def resume(thread):
 
 @cl.on_message
 async def main(message: cl.Message):
+    # Import orchestrator and event emitter
+    from app.core.orchestrator import create_plan, execute_plan
+    from app.core.events import get_emitter
+    from app.config.settings import EXECUTION_ENABLED, ENABLE_EVENTS
+    
+    # --- STEP 1: DETERMINISTIC PLANNING (ALWAYS FIRST) ---
+    # Generate plan from user input (deterministic, no LLM yet)
+    user_input = message.content or ""
+    plan = create_plan(user_input)
+    
+    # Display plan to user as JSON
+    plan_json = json.dumps(plan, indent=2, ensure_ascii=False)
+    plan_msg = cl.Message(content=f"📋 **Plan (preview)**\n\n```json\n{plan_json}\n```")
+    await plan_msg.send()
+    
+    # Emit plan_created event (if events enabled)
+    if ENABLE_EVENTS:
+        emitter = get_emitter()
+        
+        # Count steps requiring approval
+        requires_approval_count = sum(
+            1 for step in plan.get("steps", []) 
+            if step.get("requires_approval", False)
+        )
+        
+        # Minimal safe event payload (no raw user input, no secrets)
+        event_data = {
+            "goal": plan.get("goal", "")[:100],  # Truncate goal to 100 chars
+            "number_of_steps": len(plan.get("steps", [])),
+            "requires_approval_count": requires_approval_count
+        }
+        
+        emitter.emit("plan_created", event_data)
+    
+    # --- STEP 2: EXECUTION GATE ---
+    if not EXECUTION_ENABLED:
+        # Execution disabled - stop here
+        stop_msg = cl.Message(
+            content="⚠️ **Execution is disabled.** "
+                   "The plan above shows what would be done. "
+                   "To enable execution, set `EXECUTION_ENABLED=true` in your environment."
+        )
+        await stop_msg.send()
+        return  # STOP - no further processing
+    
+    # Execution enabled - proceed with execution (still no-op in v1.x)
+    exec_result = execute_plan(plan)
+    exec_msg = cl.Message(content=f"🔧 **Execution Status:** {exec_result['message']}")
+    await exec_msg.send()
+    
+    # If execution is truly enabled and implemented, continue with LLM/RAG flow below
+    # For now, the rest of the function continues as before (optional LLM interaction)
+    
+    # --- EXISTING LOGIC CONTINUES (LLM/RAG) ---
     llm = get_llm()
     
     # --- FILE HANDLING (CSV/PDF/IMAGES) ---

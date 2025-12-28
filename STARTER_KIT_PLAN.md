@@ -262,6 +262,8 @@ Goal: Add production-grade reliability patterns (no-crash, capability state, det
 ## Commit 1 — Capability State (foundation)
 **Objective:** Central capability detection + user-visible status.
 
+- NOTE (v0.1.0): Some user-facing/system messages are still in Croatian (e.g., system prompt text). These must be translated to English before release; track and complete this in Step 9 (English-first + customer-facing docs).
+
 **Steps**
 1.1 Add `app/core/capabilities.py`
 - Implement `CapabilityState` reading env/settings.
