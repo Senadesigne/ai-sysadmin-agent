@@ -160,6 +160,32 @@ All application data is centralized in the `.data/` directory:
 
 The `.data/` directory is automatically created and excluded from version control.
 
+## Logging & Audit (Local, No Telemetry)
+
+The application includes local event and audit logging with no external telemetry.
+
+**Default Configuration:**
+
+```env
+OFFLINE_MODE=false
+RAG_ENABLED=true
+ENABLE_EVENTS=true
+ENABLE_AUDIT=true
+EXECUTION_ENABLED=false
+```
+
+**Key Features:**
+
+- **Local-only logs**: Event logs are written as JSONL files under `.data/` (never sent externally). Audit trail is planned (Commit 6).
+- **Sanitized payloads**: Logs contain minimal, sanitized data with no secrets or sensitive information
+- **User control**: Disable logging anytime via `ENABLE_EVENTS=false` or `ENABLE_AUDIT=false` in `.env`
+- **Safe by default**: Execution capabilities are disabled by default (`EXECUTION_ENABLED=false`) for safety
+
+**Log Files:**
+
+- `.data/events.jsonl` - Application events (LLM calls, RAG queries, capability state)
+- Audit trail (planned in Commit 6): will write approvals/rejections to `.data/audit.jsonl` when implemented
+
 ## Security Notes
 
 - Never commit `.env` files to version control
