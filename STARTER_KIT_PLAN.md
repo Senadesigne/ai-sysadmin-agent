@@ -357,8 +357,10 @@ Goal: Add production-grade reliability patterns (no-crash, capability state, det
 
 ---
 
-## Commit 6 — Audit trail (approvals only)
+## Commit 6 — Audit trail (approvals only) (DONE)
 **Objective:** Append-only audit for approve/reject and critical actions.
+
+**Status: DONE**
 
 **Steps**
 6.1 Add `app/core/audit.py`
@@ -369,8 +371,15 @@ Goal: Add production-grade reliability patterns (no-crash, capability state, det
 - On approve: write audit entry.
 - On reject: write audit entry.
 
+**Completed:**
+- **Step 6 is COMPLETE.**
+- **`app/core/audit.py` created with graceful failure handling.**
+- **Approve/reject callbacks now log to `.data/audit.jsonl`.**
+- **16 comprehensive tests added (all passing).**
+- **Respects `ENABLE_AUDIT` flag for user control.**
+
 **Verify**
-- Approve and reject once → `.data/audit.jsonl` contains both entries.
+- ✅ Approve and reject once → `.data/audit.jsonl` contains both entries.
 
 ---
 
