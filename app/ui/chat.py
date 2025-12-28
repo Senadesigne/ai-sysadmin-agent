@@ -122,6 +122,17 @@ async def on_approve(action: cl.Action):
     """
     Callback when user clicks '✅ ODOBRI'.
     """
+    from app.core.audit import log_audit
+    
+    user_identifier = None
+    try:
+        # Get user identifier for audit trail
+        user = cl.user_session.get("user")
+        if user:
+            user_identifier = getattr(user, "identifier", None)
+    except Exception:
+        pass  # User context unavailable
+    
     try:
         # Chainlit 2.x uses .payload (dict), fallback to .value (json string)
         if hasattr(action, 'payload') and action.payload:
@@ -144,6 +155,14 @@ async def on_approve(action: cl.Action):
         if not device:
             msg.content = f"❌ Error: Device `{hostname}` not found in inventory."
             await msg.update()
+            
+            # Log audit entry for failed approval (device not found)
+            log_audit(
+                user=user_identifier,
+                action="approve",
+                params={"hostname": hostname, "command": command},
+                outcome="error_device_not_found"
+            )
             return
 
         # 2. Setup Connection Manager
@@ -158,16 +177,61 @@ async def on_approve(action: cl.Action):
         msg.content = f"✅ **Rezultat ({hostname}):**\n```\n{result}\n```"
         await msg.update()
         
+        # Log audit entry for successful approval and execution
+        log_audit(
+            user=user_identifier,
+            action="approve",
+            params={"hostname": hostname, "command": command},
+            outcome="success"
+        )
+        
     except Exception as e:
         await cl.Message(content=f"❌ Error executing callback: {e}").send()
+        
+        # Log audit entry for failed approval (exception)
+        log_audit(
+            user=user_identifier,
+            action="approve",
+            params=payload if 'payload' in locals() else {},
+            outcome=f"error: {type(e).__name__}"
+        )
 
 @cl.action_callback("reject_execution")
 async def on_reject(action: cl.Action):
     """
     Callback when user clicks '❌ ODBIJI'.
     """
+    from app.core.audit import log_audit
+    
+    user_identifier = None
+    try:
+        # Get user identifier for audit trail
+        user = cl.user_session.get("user")
+        if user:
+            user_identifier = getattr(user, "identifier", None)
+    except Exception:
+        pass  # User context unavailable
+    
+    # Extract action payload for audit log
+    params = {}
+    try:
+        if hasattr(action, 'payload') and action.payload:
+            params = action.payload
+        elif hasattr(action, 'value') and action.value != "cancel":
+            params = json.loads(action.value)
+    except Exception:
+        pass  # Could not parse payload
+    
     await action.remove()
     await cl.Message(content="🚫 Action cancelled by user.").send()
+    
+    # Log audit entry for rejection
+    log_audit(
+        user=user_identifier,
+        action="reject",
+        params=params,
+        outcome="cancelled"
+    )
 
 @cl.set_starters
 async def set_starters():

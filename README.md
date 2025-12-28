@@ -184,7 +184,7 @@ EXECUTION_ENABLED=false
 **Log Files:**
 
 - `.data/events.jsonl` - Application events (LLM calls, RAG queries, capability state)
-- Audit trail (planned in Commit 6): will write approvals/rejections to `.data/audit.jsonl` when implemented
+- `.data/audit.jsonl` - Audit trail for approve/reject actions (append-only, JSONL format)
 
 ## Security Notes
 
