@@ -77,6 +77,34 @@ from langchain_core.messages import HumanMessage
 # Load env vars (specifically SSH_KEY_PATH)
 load_dotenv()
 
+# Warn about unquoted '#' in passwords (.env parsing issue)
+_env_file = os.path.join(os.path.dirname(__file__), '..', '..', '.env')
+if os.path.exists(_env_file):
+    try:
+        with open(_env_file, 'r', encoding='utf-8') as f:
+            _env_lines = f.readlines()
+        _warned = False
+        for _line in _env_lines:
+            _line = _line.strip()
+            if not _line or _line.startswith('#'):
+                continue
+            # Check for unquoted passwords with '#'
+            if _line.startswith('ADMIN_PASSWORD=') or _line.startswith('DEV_AUTH_PASS='):
+                _key, _, _value = _line.partition('=')
+                _value = _value.strip()
+                # Detect unquoted '#': not starting with quote and contains '#'
+                if _value and not _value.startswith('"') and not _value.startswith("'") and '#' in _value:
+                    if not _warned:
+                        print("[ENV WARNING] Detected unquoted '#' character in password field.")
+                        print("[ENV WARNING] Passwords containing '#' must be quoted in .env:")
+                        print('[ENV WARNING]   Correct: ADMIN_PASSWORD="my#pass"')
+                        print("[ENV WARNING]   Wrong:   ADMIN_PASSWORD=my#pass")
+                        print("[ENV WARNING] See .env.example for details.")
+                        _warned = True
+                    break
+    except Exception:
+        pass  # Silently ignore if we can't read .env
+
 # Auth startup log
 auth_secret = os.getenv("CHAINLIT_AUTH_SECRET")
 if auth_secret:

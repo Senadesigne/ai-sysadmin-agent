@@ -35,6 +35,8 @@ ADMIN_IDENTIFIER=admin
 ADMIN_PASSWORD=your-secure-password-here
 ```
 
+**⚠️ Note:** If password contains `#`, quote it: `ADMIN_PASSWORD="my#pass"`
+
 ### 3. Install Dependencies
 
 ```bash
