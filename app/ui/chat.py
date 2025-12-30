@@ -294,7 +294,18 @@ async def initialize_session():
     capability_state = CapabilityState()
     status_message = capability_state.get_status_message()
     
-    return status_message
+    # Check persistence status and add warning if unavailable
+    persistence_warning = ""
+    try:
+        # Access the global data layer instance
+        import chainlit.data as cl_data
+        data_layer = cl_data._data_layer
+        if hasattr(data_layer, 'enabled') and not data_layer.enabled:
+            persistence_warning = "\n\n⚠️ **Chat history unavailable — running in temporary mode.**"
+    except Exception:
+        pass  # Fail silently if we can't check persistence status
+    
+    return status_message + persistence_warning
 
 @cl.on_chat_start
 async def start():

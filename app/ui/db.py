@@ -124,12 +124,26 @@ async def init_db():
         await db.commit()
         print("[DB] init_db complete (tables ensured: users, threads, steps, elements, feedbacks)")
 
-async def ensure_db_init() -> None:
+async def ensure_db_init() -> bool:
+    """
+    Ensure DB is initialized.
+    
+    Returns:
+        True if DB init succeeded (or was already initialized)
+        False if DB init failed (never raises exceptions)
+    """
     global _db_initialized
     if _db_initialized:
-        return
+        return True
+    
     async with _db_init_lock:
         if _db_initialized:
-            return
-        await init_db()
-        _db_initialized = True
+            return True
+        
+        try:
+            await init_db()
+            _db_initialized = True
+            return True
+        except Exception as e:
+            print(f"[DB] ERROR: Failed to initialize database: {e}")
+            return False

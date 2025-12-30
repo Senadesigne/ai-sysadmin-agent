@@ -22,8 +22,53 @@ class SQLiteDataLayer(BaseDataLayer):
     
     def __init__(self):
         self.db_path = DB_NAME
-        print(f"[starter-kit] SQLiteDataLayer initialized at: {self.db_path}")
+        self.enabled = True  # Persistence is enabled by default
         
+        # Try to initialize DB on startup (fail-safe)
+        try:
+            import asyncio
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                # If loop is already running, schedule init
+                asyncio.create_task(self._try_init())
+            else:
+                # If loop not running, run init synchronously
+                loop.run_until_complete(self._try_init())
+        except Exception as e:
+            # If async init fails, set enabled=False but don't crash
+            print(f"[DB] WARNING: Persistence init failed: {e}")
+            self.enabled = False
+            self._emit_persistence_failed(error_type=type(e).__name__, details=str(e)[:120])
+        
+        print(f"[starter-kit] SQLiteDataLayer initialized at: {self.db_path} (enabled={self.enabled})")
+        
+    
+    async def _try_init(self):
+        """
+        Try to initialize DB. If it fails, disable persistence and emit event.
+        This method never raises exceptions.
+        """
+        success = await ensure_db_init()
+        if not success:
+            self.enabled = False
+            self._emit_persistence_failed(error_type="DBInitFailed", details="Failed to initialize database")
+    
+    def _emit_persistence_failed(self, error_type: str, details: str):
+        """
+        Emit persistence_failed event if ENABLE_EVENTS is true.
+        Guarded and fail-safe (never crashes).
+        """
+        try:
+            from app.config.settings import ENABLE_EVENTS
+            if ENABLE_EVENTS:
+                from app.core.events import get_emitter
+                emitter = get_emitter()
+                emitter.emit("persistence_failed", {
+                    "error_type": error_type,
+                    "details": details[:120]  # Truncate to 120 chars
+                })
+        except Exception as e:
+            print(f"[DB] WARNING: Failed to emit persistence_failed event: {e}")
     
     def _get(self, obj, key, default=None):
         """Helper method to get value from dict or object"""
@@ -39,6 +84,8 @@ class SQLiteDataLayer(BaseDataLayer):
 
     # --- USER METHODS ---
     async def get_user(self, identifier: str) -> Optional[PersistedUser]:
+        if not self.enabled:
+            return None
         await ensure_db_init()
         async with aiosqlite.connect(self.db_path) as db:
             cursor = await db.execute(
@@ -57,6 +104,8 @@ class SQLiteDataLayer(BaseDataLayer):
         return None
 
     async def create_user(self, user: User) -> Optional[PersistedUser]:
+        if not self.enabled:
+            return None
         await ensure_db_init()
         identifier = self._get(user, "identifier")
         existing = await self.get_user(identifier)
@@ -78,6 +127,8 @@ class SQLiteDataLayer(BaseDataLayer):
 
     # --- THREAD METHODS ---
     async def get_thread(self, thread_id: str) -> Optional[ThreadDict]:
+        if not self.enabled:
+            return None
         print(f"[RESUME] get_thread called with thread_id={thread_id}")
         await ensure_db_init()
         
@@ -153,6 +204,11 @@ class SQLiteDataLayer(BaseDataLayer):
             return thread_data
 
     async def list_threads(self, pagination, filters):
+        if not self.enabled:
+            return PaginatedResponse(
+                data=[], 
+                pageInfo={"hasNextPage": False, "startCursor": None, "endCursor": None}
+            )
         print(f"[DB] ENTER list_threads pagination={pagination} filters={filters}")
         await ensure_db_init()
         
@@ -232,6 +288,8 @@ class SQLiteDataLayer(BaseDataLayer):
         If thread doesn't exist (shouldn't happen after Phase A), creates it.
         If thread exists but has NULL fields, populates them.
         """
+        if not self.enabled:
+            return  # No-op if persistence disabled
         print(f"[DB] ENTER update_thread threadId={thread_id}, name={name}, userId={user_id}")
         
         async with aiosqlite.connect(self.db_path) as db:
@@ -274,6 +332,8 @@ class SQLiteDataLayer(BaseDataLayer):
 
     async def create_thread(self, thread_dict: Any) -> str:
         """Create new thread - uses UPSERT to handle race conditions"""
+        if not self.enabled:
+            return str(uuid.uuid4())  # Return temp ID but don't persist
         await ensure_db_init()
         thread_id = self._get(thread_dict, "id") or str(uuid.uuid4())  # Allow passing existing ID
         created_at = datetime.utcnow().isoformat()
@@ -331,6 +391,8 @@ class SQLiteDataLayer(BaseDataLayer):
         return thread_id
 
     async def delete_thread(self, thread_id: str):
+        if not self.enabled:
+            return  # No-op if persistence disabled
         async with aiosqlite.connect(self.db_path) as db:
             await db.execute("DELETE FROM steps WHERE threadId = ?", (thread_id,))
             await db.execute("DELETE FROM elements WHERE threadId = ?", (thread_id,))
@@ -368,6 +430,8 @@ class SQLiteDataLayer(BaseDataLayer):
         If thread doesn't exist, creates minimal pending thread (no user context yet).
         Phase B (update_thread) will populate user fields later.
         """
+        if not self.enabled:
+            return  # No-op if persistence disabled
         await ensure_db_init()
         
         val_thread = step_dict.get("threadId")
@@ -410,6 +474,8 @@ class SQLiteDataLayer(BaseDataLayer):
         print(f"[DB] EXIT create_step threadId={val_thread}")
 
     async def update_step(self, step_dict: StepDict):
+        if not self.enabled:
+            return  # No-op if persistence disabled
         async with aiosqlite.connect(self.db_path) as db:
             if step_dict.get("output"):
                 await db.execute("UPDATE steps SET output = ? WHERE id = ?", (str(step_dict["output"]), step_dict["id"]))
@@ -418,6 +484,8 @@ class SQLiteDataLayer(BaseDataLayer):
             await db.commit()
 
     async def delete_step(self, step_id: str):
+        if not self.enabled:
+            return  # No-op if persistence disabled
         async with aiosqlite.connect(self.db_path) as db:
             await db.execute("DELETE FROM steps WHERE id = ?", (step_id,))
             await db.commit()
@@ -439,6 +507,8 @@ class SQLiteDataLayer(BaseDataLayer):
         
         This prevents unauthorized access to pending or non-existent threads.
         """
+        if not self.enabled:
+            return None
         await ensure_db_init()
         
         async with aiosqlite.connect(self.db_path) as db:
