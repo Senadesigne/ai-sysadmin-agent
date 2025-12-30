@@ -411,22 +411,34 @@ Goal: Add production-grade reliability patterns (no-crash, capability state, det
 
 ---
 
-## Commit 8 — Persistence failure boundaries (no-persistence mode)
+## Commit 8 — Persistence failure boundaries (no-persistence mode) (DONE)
 **Objective:** If persistence fails (locked/corrupt), app still runs with a warning.
+
+**Status: DONE**
 
 **Steps**
 8.1 Update `app/ui/db.py`
-- `ensure_db_init()` returns True/False; never crashes.
+- ✅ `ensure_db_init()` returns True/False; never crashes.
 
 8.2 Update `app/ui/data_layer.py`
-- Only in `__init__`: try DB init; on fail set `self.enabled=False` and emit `persistence_failed`.
-- For other methods: if `not self.enabled` return safe defaults (minimal), but do not swallow unexpected errors silently.
+- ✅ Only in `__init__`: try DB init; on fail set `self.enabled=False` and emit `persistence_failed`.
+- ✅ For other methods: if `not self.enabled` return safe defaults (minimal), but do not swallow unexpected errors silently.
 
 8.3 Update `app/ui/chat.py`
-- On chat start: if persistence init fails → show sticky warning: "Chat history unavailable - running in temporary mode".
+- ✅ On chat start: if persistence init fails → show sticky warning: "Chat history unavailable - running in temporary mode".
+
+**Completed:**
+- **Step 8 is COMPLETE.**
+- **`ensure_db_init()` returns bool (True/False), never crashes.**
+- **`SQLiteDataLayer` has `enabled` flag and fail-safe mode.**
+- **All data layer methods return safe defaults when disabled.**
+- **`persistence_failed` event emitted (guarded by ENABLE_EVENTS).**
+- **UI shows sticky warning when persistence unavailable.**
+- **11 comprehensive tests added (all passing).**
+- **See `COMMIT_8_VERIFICATION.md` for manual verification steps.**
 
 **Verify**
-- Simulate locked/corrupt DB on startup → app runs; warning shown; no crash.
+- ✅ Simulate locked/corrupt DB on startup → app runs; warning shown; no crash.
 
 ---
 
