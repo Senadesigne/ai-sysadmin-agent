@@ -123,6 +123,8 @@ async def on_approve(action: cl.Action):
     Callback when user clicks '✅ ODOBRI'.
     """
     from app.core.audit import log_audit
+    from app.config.settings import ENABLE_EVENTS
+    from app.core.events import get_emitter
     
     user_identifier = None
     try:
@@ -142,6 +144,30 @@ async def on_approve(action: cl.Action):
             
         hostname = payload.get("hostname")
         command = payload.get("command")
+        
+        # Emit execution_requested event (if events enabled)
+        if ENABLE_EVENTS:
+            try:
+                emitter = get_emitter()
+                
+                # Get thread_id if available
+                thread_id = None
+                try:
+                    thread_id = getattr(getattr(cl.context, "session", None), "thread_id", None)
+                except Exception:
+                    pass
+                
+                # Sanitized payload (no full command)
+                hostname_trunc = hostname[:30] if hostname else ""
+                command_len = len(command) if command else 0
+                
+                emitter.emit("execution_requested", {
+                    "hostname_trunc": hostname_trunc,
+                    "command_len": command_len,
+                    "thread_id": thread_id
+                })
+            except Exception:
+                pass  # Events must never crash the app
         
         await action.remove() # Remove buttons to prevent double-click
         
@@ -469,7 +495,57 @@ DANAŠNJI ZAHTJEV: {message.content}
              
         user_message_content.extend(image_content)
         
+        # Emit LLM call start event (if events enabled)
+        import time
+        llm_start_time = None
+        if ENABLE_EVENTS:
+            try:
+                llm_start_time = time.time()
+                emitter = get_emitter()
+                
+                # Get thread_id if available
+                thread_id = None
+                try:
+                    thread_id = getattr(getattr(cl.context, "session", None), "thread_id", None)
+                except Exception:
+                    pass
+                
+                # Calculate prompt length (sanitized - no raw content)
+                prompt_len = len(system_instruction) if system_instruction else 0
+                has_images = len(image_content) > 0
+                
+                # Detect provider/model from LLM instance
+                provider = "unknown"
+                model = "unknown"
+                if hasattr(llm, "__class__"):
+                    class_name = llm.__class__.__name__
+                    if "Google" in class_name or "Gemini" in class_name:
+                        provider = "google"
+                    if hasattr(llm, "model_name"):
+                        model = str(llm.model_name)[:50]  # truncate
+                
+                emitter.emit("llm_call_start", {
+                    "provider": provider,
+                    "model": model,
+                    "prompt_len": prompt_len,
+                    "has_images": has_images,
+                    "thread_id": thread_id
+                })
+            except Exception:
+                pass  # Events must never crash the app
+        
         response = llm.invoke([HumanMessage(content=user_message_content)])
+        
+        # Emit LLM call end event (if events enabled)
+        if ENABLE_EVENTS and llm_start_time is not None:
+            try:
+                duration_ms = int((time.time() - llm_start_time) * 1000)
+                emitter.emit("llm_call_end", {
+                    "success": True,
+                    "duration_ms": duration_ms
+                })
+            except Exception:
+                pass  # Events must never crash the app
         
         # Langchain response content handling
         content_text = response.content
@@ -489,6 +565,33 @@ DANAŠNJI ZAHTJEV: {message.content}
         msg = cl.Message(content=display_text)
         
         if action_data:
+            # Emit approval_requested event (if events enabled)
+            if ENABLE_EVENTS:
+                try:
+                    emitter = get_emitter()
+                    
+                    # Get thread_id if available
+                    thread_id = None
+                    try:
+                        thread_id = getattr(getattr(cl.context, "session", None), "thread_id", None)
+                    except Exception:
+                        pass
+                    
+                    # Sanitized payload (no full command, only length and truncated hostname)
+                    hostname_raw = action_data.get("hostname", "")
+                    hostname_trunc = hostname_raw[:30] if hostname_raw else ""
+                    command_raw = action_data.get("command", "")
+                    command_len = len(command_raw)
+                    
+                    emitter.emit("approval_requested", {
+                        "action": "execution",
+                        "hostname_trunc": hostname_trunc,
+                        "command_len": command_len,
+                        "thread_id": thread_id
+                    })
+                except Exception:
+                    pass  # Events must never crash the app
+            
             # Create Actions
             # FIX: payload is now required in Chainlit 2.x
             actions = [
@@ -513,6 +616,18 @@ DANAŠNJI ZAHTJEV: {message.content}
         await msg.send()
 
     except Exception as e:
+        # Emit LLM call failure event (if events enabled)
+        if ENABLE_EVENTS:
+            try:
+                emitter = get_emitter()
+                error_type = type(e).__name__
+                emitter.emit("llm_call_end", {
+                    "success": False,
+                    "error_type": error_type
+                })
+            except Exception:
+                pass  # Events must never crash the app
+        
         await cl.Message(content=f"Error: {str(e)}").send()
 
 # Helpers

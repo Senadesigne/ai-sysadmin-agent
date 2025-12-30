@@ -383,8 +383,10 @@ Goal: Add production-grade reliability patterns (no-crash, capability state, det
 
 ---
 
-## Commit 7 — Wire key event emissions (minimal)
+## Commit 7 — Wire key event emissions (minimal) (DONE)
 **Objective:** Ensure events are emitted at important points.
+
+**Status: DONE**
 
 **Steps**
 7.1 Add emits (guarded by `ENABLE_EVENTS`)
@@ -394,8 +396,18 @@ Goal: Add production-grade reliability patterns (no-crash, capability state, det
 - approval requested
 - execution requested (if module exists)
 
+**Completed:**
+- **Commit 7 is COMPLETE.**
+- **`llm_call_start` and `llm_call_end` events wired in `app/ui/chat.py`.**
+- **`approval_requested` event emitted when action buttons are created.**
+- **`execution_requested` event emitted in approve callback.**
+- **All events sanitized (no raw commands, secrets, or user input).**
+- **6 new comprehensive tests added (all passing).**
+- **All event emissions are fail-safe (never crash the app).**
+
 **Verify**
-- `.data/events.jsonl` includes events for a typical chat flow.
+- ✅ `.data/events.jsonl` includes events for a typical chat flow.
+- ✅ See `COMMIT_7_VERIFICATION.md` for manual verification tests.
 
 ---
 
