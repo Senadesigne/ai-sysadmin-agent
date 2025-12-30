@@ -105,10 +105,7 @@ Non-goals v1:
   - Produkcijski mode: zahtijeva konfiguriran `CHAINLIT_AUTH_SECRET` i/ili integraciju (v1 minimalno: env-based basic auth).
   - **All dev auth backdoors and dependency_overrides have been REMOVED.**
 - **Test:** ✅ login radi s env kredencijalima (`ADMIN_IDENTIFIER=senad` i `ADMIN_PASSWORD=Pos-322`); bez env-a u dev modu koristi sigurne defaulte ili blokira s jasnom porukom.
-- **🚨 TODO:** Verify and fix support for passwords containing "#" in .env (likely treated as comment). 
-  - Current workaround: Use `ADMIN_PASSWORD=Pos-322` (no #)
-  - Suggested fix: Try `ADMIN_PASSWORD='Pos-322#'` or escaping `\#`
-  - Re-test that login succeeds and expected password length becomes 8
+- **✅ RESOLVED (4fcaa2b):** Passwords containing "#" in .env - documented in .env.example with quote syntax + startup warning added to detect unquoted "#" in password fields.
 - **Commit:** `feat: configurable auth (dev/prod) without hardcoded creds`
 
 ### 4) Optional LLM + Optional RAG: safe fallbacks (DONE)
@@ -262,7 +259,7 @@ Goal: Add production-grade reliability patterns (no-crash, capability state, det
 ## Commit 1 — Capability State (foundation)
 **Objective:** Central capability detection + user-visible status.
 
-- NOTE (v0.1.0): Some user-facing/system messages are still in Croatian (e.g., system prompt text). These must be translated to English before release; track and complete this in Step 9 (English-first + customer-facing docs).
+- **✅ DONE (36600a5):** User-facing/system messages translated to English (system prompt, UI buttons, status messages in app/ui/chat.py).
 
 **Steps**
 1.1 Add `app/core/capabilities.py`
