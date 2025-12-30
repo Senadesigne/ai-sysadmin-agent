@@ -228,7 +228,7 @@ async def on_approve(action: cl.Action):
         # 3. Execute
         result = await conn_mgr.execute(device, command)
         
-        msg.content = f"✅ **Rezultat ({hostname}):**\n```\n{result}\n```"
+        msg.content = f"✅ **Result ({hostname}):**\n```\n{result}\n```"
         await msg.update()
         
         # Log audit entry for successful approval and execution
@@ -301,8 +301,8 @@ async def set_starters():
             icon="/public/icons/radar.svg",
             ),
         cl.Starter(
-            label="Status Sustava",
-            message="Provjeri status servera i servisa. (Healthcheck Placeholder)",
+            label="System Status",
+            message="Check server and service status. (Healthcheck Placeholder)",
             icon="/public/icons/activity.svg",
             ),
         cl.Starter(
@@ -486,23 +486,23 @@ async def main(message: cl.Message):
     if rag_unavailable:
         rag_notice = "\n**NOTE:** Knowledge base is currently unavailable.\n"
     
-    system_instruction = f"""Ti si AI SysAdmin Agent.
-Tvoj cilj je pomoći korisniku s održavanjem servera i mrežne opreme.
+    system_instruction = f"""You are an AI SysAdmin Agent.
+Your goal is to help users maintain servers and network equipment.
 {rag_notice}
-KONTEKST ZNANJA (RAG):
+KNOWLEDGE CONTEXT (RAG):
 {context_str}
 
-**INSTRUKCIJE ZA VISION (SLIKE)**:
-Ako korisnik pošalje sliku, analiziraj je detaljno. 
-- Ako je kabel, identificiraj tip (RJ45, DB9, SFP, itd.).
-- Ako je screenshot, pročitaj tekst i objasni što se događa.
+**VISION INSTRUCTIONS (IMAGES)**:
+If user sends an image, analyze it in detail.
+- If it's a cable, identify the type (RJ45, DB9, SFP, etc.).
+- If it's a screenshot, read the text and explain what's happening.
 
-**INSTRUKCIJE ZA IZVRŠAVANJE NAREDBI**:
-Ako korisnik zatraži akciju koja zahtijeva izvršavanje CLI naredbe na serveru (npr. 'provjeri disk', 'restartaj nginx', 'pokaži vlanove'), NE izvršavaj ju odmah.
-Umjesto toga, predloži akciju vraćanjem JSON bloka na kraju odgovora.
+**COMMAND EXECUTION INSTRUCTIONS**:
+If user requests an action requiring CLI command execution on a server (e.g. 'check disk', 'restart nginx', 'show vlans'), DO NOT execute immediately.
+Instead, propose the action by returning a JSON block at the end of your response.
 
-**OBAVEZAN FORMAT ZA AKCIJE**:
-Objasni plan riječima, a zatim dodaj:
+**REQUIRED ACTION FORMAT**:
+Explain the plan in words, then add:
 ```json
 {{
   "hostname": "TARGET_HOSTNAME_FROM_DB",
@@ -511,11 +511,11 @@ Objasni plan riječima, a zatim dodaj:
 }}
 ```
 
-Pazi:
-1. `hostname` mora odgovarati hostnamu iz inventara (ako znaš, ili pretpostavi iz razgovora).
-2. `command` mora biti sigurna (nema `rm -rf` itd.).
+Important:
+1. `hostname` must match hostname from inventory (if known, or assume from conversation).
+2. `command` must be safe (no `rm -rf` etc.).
 
-DANAŠNJI ZAHTJEV: {message.content}
+TODAY'S REQUEST: {message.content}
 """
 
     try:
@@ -638,14 +638,14 @@ DANAŠNJI ZAHTJEV: {message.content}
                     name="approve_execution", 
                     value=json.dumps(action_data), 
                     payload=action_data,
-                    label="✅ ODOBRI", 
+                    label="✅ APPROVE", 
                     description=f"Run {action_data.get('command')}"
                 ),
                 cl.Action(
                     name="reject_execution", 
                     value="cancel", 
                     payload={}, # Empty payload for reject
-                    label="❌ ODBIJI"
+                    label="❌ REJECT"
                 )
             ]
             msg.actions = actions
@@ -671,7 +671,7 @@ DANAŠNJI ZAHTJEV: {message.content}
 
 # Helpers
 async def handle_pdf(element):
-    msg = cl.Message(content=f"⚙️ Analiziram PDF: {element.name}...")
+    msg = cl.Message(content=f"⚙️ Analyzing PDF: {element.name}...")
     await msg.send()
     try:
         temp_path = f"temp_{element.name}"
